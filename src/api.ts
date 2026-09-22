@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CalendarEventDTO,
+  CategoriesDTO,
+  CategoriesSave,
   DashboardDTO,
   EventType,
   FileEntry,
@@ -37,6 +39,7 @@ export const keys = {
   events: (from: string, to: string) => ["events", from, to] as const,
   day: (date: string) => ["day", date] as const,
   tasks: ["tasks"] as const,
+  categories: ["categories"] as const,
 };
 
 /** Most edits ripple into several views (board, dashboard, counters) — refresh them together. */
@@ -90,7 +93,24 @@ export function useSync() {
         : mode.kind === "demo"
           ? api<SyncResult>("/calendar/demo", { method: "POST" })
           : api<SyncResult>("/calendar/import", { method: "POST", body: { ics: mode.ics } }),
-    onSuccess: () => {
+    onSuccess: (r) => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: keys.settings });
+      if (r.newSources > 0) window.dispatchEvent(new Event("kc:new-sources"));
+    },
+  });
+}
+
+export const useCategories = (enabled: boolean) =>
+  useQuery({ queryKey: keys.categories, queryFn: () => api<CategoriesDTO>("/categories"), enabled });
+
+export function useSaveCategories() {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (p: CategoriesSave) => api<CategoriesDTO & { warnings: string[] }>("/categories", { method: "PUT", body: p }),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.categories, data);
       invalidate();
       qc.invalidateQueries({ queryKey: keys.settings });
     },

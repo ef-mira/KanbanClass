@@ -121,8 +121,22 @@ export function ProgressBar({ segments, total, thin, label }: { segments: { valu
   );
 }
 
-/** Right-hand slide-over with scrim, Esc to close, and focus kept inside while open. */
-export function Drawer({ open, onClose, width = 560, children, label }: { open: boolean; onClose: () => void; width?: number; children: ReactNode; label: string }) {
+/** Right-hand slide-over (or centered modal) with scrim, Esc to close, and focus kept inside while open. */
+export function Drawer({
+  open,
+  onClose,
+  width = 560,
+  children,
+  label,
+  placement = "right",
+}: {
+  open: boolean;
+  onClose: () => void;
+  width?: number;
+  children: ReactNode;
+  label: string;
+  placement?: "right" | "center";
+}) {
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -149,7 +163,7 @@ export function Drawer({ open, onClose, width = 560, children, label }: { open: 
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
+    <div className={cx("fixed inset-0 z-40 flex", placement === "center" ? "items-center justify-center p-6" : "justify-end")}>
       <div className="animate-fade absolute inset-0 bg-[var(--scrim)]" onClick={onClose} />
       <div
         ref={panel}
@@ -157,7 +171,10 @@ export function Drawer({ open, onClose, width = 560, children, label }: { open: 
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className="animate-drawer relative flex h-full w-full flex-col border-l border-line bg-surface shadow-float outline-none"
+        className={cx(
+          "relative flex w-full flex-col bg-surface shadow-float outline-none",
+          placement === "center" ? "animate-fade h-full max-h-[860px] rounded-xl border border-line" : "animate-drawer h-full border-l border-line",
+        )}
         style={{ maxWidth: width }}
       >
         {children}

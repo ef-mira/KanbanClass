@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarPlus, FileUp, FlaskConical, Link, RefreshCw, Save } from "lucide-react";
+import { CalendarPlus, FileUp, FlaskConical, Layers, Link, RefreshCw, Save } from "lucide-react";
+import { useNav } from "../nav";
 import type { SyncResult } from "../../shared/types";
 import { useSettings, useSync, useUpdateSettings } from "../api";
 import { Button } from "../components/ui";
@@ -11,6 +12,7 @@ export function Settings() {
   const sync = useSync();
   const toast = useToast();
   const file = useRef<HTMLInputElement>(null);
+  const { openCategories } = useNav();
   const [form, setForm] = useState({ icalUrl: "", teachingRoot: "", schoolYearStart: "", schoolYearEnd: "" });
   const [result, setResult] = useState<SyncResult | null>(null);
 
@@ -87,6 +89,10 @@ export function Settings() {
             />
             <Button icon={<FlaskConical className="size-3.5" />} onClick={() => sync.mutate({ kind: "demo" }, { onSuccess: onSynced, onError })} loading={sync.isPending && sync.variables?.kind === "demo"}>
               Load sample timetable
+            </Button>
+            <Button icon={<Layers className="size-3.5" />} onClick={openCategories} disabled={!settings?.lastSyncAt}>
+              Organize categories
+              {!!settings?.pendingSources && <span className="rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-fg">{settings.pendingSources} new</span>}
             </Button>
           </div>
           <div className="mt-3 text-[11px] text-faint">

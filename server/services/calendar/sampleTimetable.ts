@@ -1,7 +1,8 @@
 /**
  * Generates a realistic weekly Danish timetable as iCal for first-run demos,
  * shaped like a Zenbi export: one recurring VEVENT per weekly slot, with
- * lessons, breaks, a staff meeting and yard duty mixed together.
+ * lessons, breaks, a staff meeting and yard duty mixed together, plus one-off
+ * school events (fagdage, galla) that need sorting in the category modal.
  */
 const WEEK: { day: number; start: string; end: string; summary: string; location: string }[] = [
   { day: 1, start: "08:00", end: "09:30", summary: "Fysik 10 - 10.A", location: "Fysiklab" },
@@ -19,6 +20,16 @@ const WEEK: { day: number; start: string; end: string; summary: string; location
   { day: 4, start: "12:15", end: "13:45", summary: "Fysik 10 - 10.A", location: "Fysiklab" },
   { day: 5, start: "08:00", end: "08:45", summary: "Kemi 9B - 9.B", location: "Kemilab" },
   { day: 5, start: "08:50", end: "09:35", summary: "Teammøde 10. årgang", location: "Lok. 3" },
+  { day: 5, start: "10:00", end: "11:30", summary: "10. klasse dansk - 10.A", location: "Lok. 14" },
+  { day: 4, start: "14:00", end: "15:00", summary: "Extra tid", location: "Lok. 14" },
+];
+
+/** One-off events: week offset from the first school week, weekday (1 = Mon). */
+const ONE_OFF: { week: number; day: number; start: string; end: string; summary: string; location: string }[] = [
+  { week: 9, day: 3, start: "08:00", end: "14:00", summary: "Fagdag Fysik", location: "Fysiklab" },
+  { week: 14, day: 2, start: "08:00", end: "14:00", summary: "Fagdag", location: "" },
+  { week: 26, day: 3, start: "08:00", end: "14:00", summary: "Fagdag Fysik", location: "Fysiklab" },
+  { week: 30, day: 5, start: "18:00", end: "23:00", summary: "Galla", location: "Aulaen" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -49,6 +60,20 @@ export function buildSampleIcs(from: Date, to: Date): string {
       `EXDATE:${localStamp(breakDay, slot.start)}`,
       `SUMMARY:${slot.summary}`,
       ...(slot.location ? [`LOCATION:${slot.location}`] : []),
+      "END:VEVENT",
+    );
+  });
+  ONE_OFF.forEach((ev, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + ev.week * 7 + ev.day - 1);
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:sample-oneoff-${i}@kanbanclass`,
+      `DTSTAMP:${localStamp(new Date(), "00:00")}Z`,
+      `DTSTART:${localStamp(d, ev.start)}`,
+      `DTEND:${localStamp(d, ev.end)}`,
+      `SUMMARY:${ev.summary}`,
+      ...(ev.location ? [`LOCATION:${ev.location}`] : []),
       "END:VEVENT",
     );
   });

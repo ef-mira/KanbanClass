@@ -77,6 +77,7 @@ calendarRouter.patch("/events/:id", async (req, res) => {
   const ev = await prisma.calendarEvent.findFirst({ where: { id: req.params.id, userId: req.ctx.userId } });
   if (!ev) throw new HttpError(404, "Event not found");
   await prisma.calendarEvent.update({ where: { id: ev.id }, data: { isIgnored, ...(isIgnored && { lessonId: null }) } });
-  if (ev.subjectId) await assignSlots(ev.subjectId);
+  // Skipping a slot pushes the plan forward along the timetable.
+  if (ev.subjectId) await assignSlots(ev.subjectId, "positional");
   res.json({ ok: true });
 });

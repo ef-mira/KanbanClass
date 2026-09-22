@@ -9,6 +9,8 @@ export interface Nav {
   focusSubjectId: string | null;
   openLesson: (id: string | null) => void;
   openDay: (date: string | null) => void;
+  /** Category modal: sort calendar entries into board columns. */
+  openCategories: () => void;
 }
 
 export const NavContext = createContext<Nav | null>(null);

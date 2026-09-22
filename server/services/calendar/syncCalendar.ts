@@ -88,20 +88,11 @@ export async function syncCalendar(userId: string, ics: string): Promise<SyncRes
   const parse = await parseEventTexts(instances);
   warnings.push(...parse.warnings);
 
-  // Subjects: match case-insensitively on name, create missing ones.
-  const subjects = await prisma.subject.findMany({ where: { userId } });
-  const subjectByKey = new Map(subjects.map((s) => [s.name.toLocaleLowerCase("da"), s]));
-  let subjectsCreated = 0;
-  for (const p of parse.results) {
-    if (p.eventType !== "lesson" || !p.subject) continue;
-    const key = p.subject.toLocaleLowerCase("da");
-    if (subjectByKey.has(key)) continue;
-    const s = await prisma.subject.create({
-      data: { userId, name: p.subject, color: SUBJECT_PALETTE[subjectByKey.size % SUBJECT_PALETTE.length] },
-    });
-    subjectByKey.set(key, s);
-    subjectsCreated++;
-  }
+  // Sources: one per distinct label. New lesson-like sources get their own
+  // subject column by default; everything else defaults to "not needed".
+  // The teacher adjusts this in the category modal.
+  const labels = instances.map((inst, i) => sourceLabel(inst.summary, parse.results[i]));
+  const { sourceByKey, subjectsCreated, newSources } = await upsertSources(userId, labels, parse.results.map((p) => p.eventType));
 
   const existing = await prisma.calendarEvent.findMany({ where: { userId }, select: { id: true, externalId: true, subjectId: true } });
   const existingIds = new Map(existing.map((e) => [e.externalId, e]));
@@ -114,7 +105,8 @@ export async function syncCalendar(userId: string, ics: string): Promise<SyncRes
       for (let i = 0; i < instances.length; i++) {
         const inst = instances[i];
         const p = parse.results[i];
-        const subjectId = p.eventType === "lesson" && p.subject ? (subjectByKey.get(p.subject.toLocaleLowerCase("da"))?.id ?? null) : null;
+        const source = labels[i] ? sourceByKey.get(sourceKey(labels[i]!)) : undefined;
+        const subjectId = source && !source.isIgnored ? source.subjectId : null;
         if (subjectId) touchedSubjects.add(subjectId);
         const data = {
           summary: inst.summary,
@@ -128,6 +120,7 @@ export async function syncCalendar(userId: string, ics: string): Promise<SyncRes
           group: p.group,
           room: p.room,
           isPause: p.isPause,
+          sourceId: source?.id ?? null,
           subjectId,
         };
         if (existingIds.has(inst.externalId)) {
@@ -160,6 +153,7 @@ export async function syncCalendar(userId: string, ics: string): Promise<SyncRes
     lessonsCreated,
     aiParsed: parse.aiParsed,
     heuristicParsed: parse.heuristicParsed,
+    newSources,
     warnings,
   };
   await prisma.userSettings.upsert({
@@ -168,4 +162,72 @@ export async function syncCalendar(userId: string, ics: string): Promise<SyncRes
     update: { lastSyncAt: new Date(), lastSyncSummary: JSON.stringify(result) },
   });
   return result;
+}
+
+export const sourceKey = (label: string) => label.trim().replace(/\s+/g, " ").toLocaleLowerCase("da");
+
+/** Label used to group entries: the parsed subject for lessons, else the summary up to the first " - ". Pauses get none. */
+export function sourceLabel(summary: string, p: { eventType: string; subject: string | null }): string | null {
+  if (p.eventType === "pause") return null;
+  const label = (p.subject?.trim() || summary.split(/\s+[-–|]\s+/)[0]).trim().replace(/\s+/g, " ");
+  return label || null;
+}
+
+async function upsertSources(userId: string, labels: (string | null)[], types: string[]) {
+  const stats = new Map<string, { label: string; count: number; types: Map<string, number> }>();
+  labels.forEach((label, i) => {
+    if (!label) return;
+    const key = sourceKey(label);
+    const st = stats.get(key) ?? { label, count: 0, types: new Map() };
+    st.count++;
+    st.types.set(types[i], (st.types.get(types[i]) ?? 0) + 1);
+    stats.set(key, st);
+  });
+
+  const subjects = await prisma.subject.findMany({ where: { userId } });
+  const subjectByName = new Map(subjects.map((x) => [sourceKey(x.name), x]));
+  let nextOrder = subjects.reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
+  let subjectsCreated = 0;
+
+  // Every teacher gets one renamable catch-all column for prep not tied to a subject.
+  if (!subjects.some((x) => x.kind === "special")) {
+    await prisma.subject.create({ data: { userId, name: uniqueName("Additional", subjectByName), kind: "special", color: "#64748b", sortOrder: 1000 } });
+  }
+
+  const existing = await prisma.eventSource.findMany({ where: { userId } });
+  const byKey = new Map(existing.map((x) => [x.key, x]));
+  let newSources = 0;
+  for (const [key, st] of stats) {
+    const eventType = [...st.types.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const found = byKey.get(key);
+    if (found) {
+      byKey.set(key, await prisma.eventSource.update({ where: { id: found.id }, data: { eventCount: st.count, eventType } }));
+      continue;
+    }
+    let subjectId: string | null = null;
+    if (eventType === "lesson") {
+      let subject = subjectByName.get(key);
+      if (!subject) {
+        subject = await prisma.subject.create({
+          data: { userId, name: st.label, color: SUBJECT_PALETTE[(nextOrder) % SUBJECT_PALETTE.length], sortOrder: nextOrder++ },
+        });
+        subjectByName.set(key, subject);
+        subjectsCreated++;
+      }
+      subjectId = subject.id;
+    }
+    byKey.set(key, await prisma.eventSource.create({ data: { userId, key, label: st.label, eventType, eventCount: st.count, subjectId, isIgnored: !subjectId } }));
+    newSources++;
+  }
+  // Sources that vanished from the feed keep their mapping (they may come back) but show no events.
+  const gone = existing.filter((x) => !stats.has(x.key)).map((x) => x.id);
+  if (gone.length) await prisma.eventSource.updateMany({ where: { id: { in: gone } }, data: { eventCount: 0 } });
+
+  return { sourceByKey: byKey, subjectsCreated, newSources };
+}
+
+function uniqueName(base: string, taken: Map<string, unknown>): string {
+  let name = base;
+  for (let n = 2; taken.has(sourceKey(name)); n++) name = `${base} ${n}`;
+  return name;
 }

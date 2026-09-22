@@ -59,3 +59,27 @@ export function subjectTint(hex: string, dark: boolean) {
   const mix = (c: number) => (dark ? Math.round(c + (255 - c) * 0.55) : Math.round(c * 0.55));
   return { bg, fg: `rgb(${mix(r)} ${mix(g)} ${mix(b)})`, solid: hex };
 }
+
+/** Plain-text lines of a Markdown body for compact card previews. */
+export function mdPreview(body: string): string {
+  return body
+    .split("\n")
+    .filter((l) => !/^\s*#{1,6}\s/.test(l)) // headings are structure, not content
+    .map((l) =>
+      l
+        .trim()
+        .replace(/^[-*+]\s+\[[xX]\]\s+/, "☑ ")
+        .replace(/^[-*+]\s+\[\s?\]\s*/, "☐ ")
+        .replace(/^[-*+]\s+/, "• ")
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"),
+    )
+    .filter((l) => l && l !== "☐" && l !== "•")
+    .join("\n");
+}
+
+/** Compact card date: "Wed 23/9". */
+export const fmtShortDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString(LOCALE, { weekday: "short" })} ${d.getDate()}/${d.getMonth() + 1}`;
+};

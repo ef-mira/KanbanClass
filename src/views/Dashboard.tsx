@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronRight, Link2, ListTodo, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronRight, Layers, Link2, ListTodo, Plus, Send, Sparkles, Trash2 } from "lucide-react";
 import type { SubjectDTO, TaskDTO } from "../../shared/types";
-import { useDashboard, useLessonAction, useTaskMutations } from "../api";
+import { useDashboard, useLessonAction, useSettings, useTaskMutations } from "../api";
 import { useNav } from "../nav";
 import { fmtDay, fmtTime, isoDate, relativeDays } from "../lib/format";
 import { lessonLabel } from "../../shared/planning";
@@ -11,7 +11,8 @@ import { WeekGrid } from "./WeekGrid";
 
 export function Dashboard() {
   const { data, isLoading } = useDashboard();
-  const { go } = useNav();
+  const { data: settings } = useSettings();
+  const { go, openCategories } = useNav();
 
   if (!isLoading && data && data.subjects.length === 0) {
     return (
@@ -30,6 +31,17 @@ export function Dashboard() {
 
   return (
     <div className="h-full overflow-y-auto p-5">
+      {!!settings?.pendingSources && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5">
+          <Layers className="size-4 text-accent" />
+          <span className="flex-1 text-[13px]">
+            {settings.pendingSources} new kind{settings.pendingSources > 1 ? "s" : ""} of calendar entries to sort into your columns.
+          </span>
+          <Button size="sm" variant="primary" onClick={openCategories}>
+            Review
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-3">
         {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-[118px] w-[260px]" />)}
         {data?.subjects.map((s) => <MetricCard key={s.id} subject={s} onClick={() => go("board", { subjectId: s.id })} />)}

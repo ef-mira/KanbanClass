@@ -34,6 +34,8 @@ export interface LessonDTO {
   slot: SlotDTO | null;
   status: LessonStatus;
   openTaskCount: number;
+  /** First few entries of the lesson folder, for card previews. */
+  files: { names: string[]; total: number };
 }
 
 export interface SubjectStats {
@@ -43,11 +45,15 @@ export interface SubjectStats {
   totalSlots: number;
 }
 
+export type SubjectKind = "subject" | "special";
+
 export interface SubjectDTO {
   id: string;
   name: string;
   color: string;
   isVisible: boolean;
+  kind: SubjectKind;
+  sortOrder: number;
   stats: SubjectStats;
 }
 
@@ -107,6 +113,8 @@ export interface SettingsDTO {
   lastSyncSummary: string | null;
   aiEnabled: boolean;
   aiModel: string;
+  /** Calendar sources seen in a sync but not yet sorted in the category modal. */
+  pendingSources: number;
   platform: NodeJS.Platform | string;
 }
 
@@ -119,7 +127,39 @@ export interface SyncResult {
   lessonsCreated: number;
   aiParsed: number;
   heuristicParsed: number;
+  newSources: number;
   warnings: string[];
+}
+
+export interface CategoryColumnDTO {
+  id: string;
+  name: string;
+  color: string;
+  kind: SubjectKind;
+  lessonCount: number;
+  plannedCount: number;
+}
+
+export interface CategorySourceDTO {
+  id: string;
+  label: string;
+  eventType: EventType;
+  eventCount: number;
+  subjectId: string | null;
+  isIgnored: boolean;
+  reviewed: boolean;
+  nextDate: string | null;
+}
+
+export interface CategoriesDTO {
+  columns: CategoryColumnDTO[];
+  sources: CategorySourceDTO[];
+}
+
+/** Save payload: full column list in board order, plus where each source goes (null = not needed). */
+export interface CategoriesSave {
+  columns: { id: string; name: string; color: string; kind: SubjectKind }[];
+  assignments: { sourceId: string; columnId: string | null }[];
 }
 
 export interface FileEntry {

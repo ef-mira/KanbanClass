@@ -8,50 +8,76 @@ const DAY = 86_400_000;
 /** Calendar events that count as teachable slots for a subject. */
 export const slotWhere = (subjectId: string): Prisma.CalendarEventWhereInput => ({
   subjectId,
-  eventType: "lesson",
+  eventType: { not: "pause" }, // anything mapped to a column counts, e.g. "Fagdag Fysik" typed as "other"
   isIgnored: false,
 });
 
 /**
- * Binds lessons to calendar slots by position: the Nth lesson (by
- * sequenceOrder) occupies the Nth chronological slot. Reordering lessons
- * therefore moves their content to a different date while the timetable
- * itself stays fixed. Missing lessons are created as empty stubs.
+ * Binds lessons to calendar slots.
+ *
+ * - "stable" (sync, category changes): lessons keep the slot they already
+ *   have; new slots get new empty lessons, so adding e.g. a "Fagdag" slot
+ *   doesn't shift the rest of the plan.
+ * - "positional" (drag reorder, skipping a slot): the Nth lesson by
+ *   sequenceOrder takes the Nth chronological slot, so content moves along
+ *   the fixed timetable.
+ *
+ * Lessons left without a slot are kept if they have content (shown as
+ * unscheduled) and deleted if they are empty stubs. sequenceOrder always ends
+ * up matching slot order.
  */
-export async function assignSlots(subjectId: string): Promise<{ lessonsCreated: number }> {
-  return prisma.$transaction(async (tx) => {
-    const slots = await tx.calendarEvent.findMany({ where: slotWhere(subjectId), orderBy: { startTime: "asc" } });
-    let lessons = await tx.lesson.findMany({ where: { subjectId }, orderBy: { sequenceOrder: "asc" } });
+export async function assignSlots(subjectId: string, mode: "stable" | "positional" = "stable"): Promise<{ lessonsCreated: number }> {
+  return prisma.$transaction(
+    async (tx) => {
+      const slots = await tx.calendarEvent.findMany({ where: slotWhere(subjectId), orderBy: { startTime: "asc" } });
+      const lessons = await tx.lesson.findMany({ where: { subjectId }, orderBy: { sequenceOrder: "asc" } });
+      const slotLesson: (Lesson | null)[] = new Array(slots.length).fill(null);
+      const used = new Set<string>();
 
-    // Drop trailing empty stubs that no longer have a slot (e.g. events removed from the feed).
-    while (lessons.length > slots.length && isEmptyStub(lessons[lessons.length - 1])) {
-      await tx.lesson.delete({ where: { id: lessons[lessons.length - 1].id } });
-      lessons = lessons.slice(0, -1);
-    }
-
-    let lessonsCreated = 0;
-    for (let i = lessons.length; i < slots.length; i++) {
-      const created = await tx.lesson.create({
-        data: { subjectId, sequenceOrder: i, title: "" },
-      });
-      lessons.push(created);
-      lessonsCreated++;
-    }
-
-    for (let i = 0; i < lessons.length; i++) {
-      if (lessons[i].sequenceOrder !== i) {
-        await tx.lesson.update({ where: { id: lessons[i].id }, data: { sequenceOrder: i } });
+      if (mode === "positional") {
+        lessons.slice(0, slots.length).forEach((l, i) => {
+          slotLesson[i] = l;
+          used.add(l.id);
+        });
+      } else {
+        const byId = new Map(lessons.map((l) => [l.id, l]));
+        slots.forEach((ev, i) => {
+          const l = ev.lessonId ? byId.get(ev.lessonId) : undefined;
+          if (l && !used.has(l.id)) {
+            slotLesson[i] = l;
+            used.add(l.id);
+          }
+        });
       }
-    }
 
-    await tx.calendarEvent.updateMany({ where: { subjectId, NOT: slotWhere(subjectId) }, data: { lessonId: null } });
-    for (let i = 0; i < slots.length; i++) {
-      if (slots[i].lessonId !== lessons[i].id) {
-        await tx.calendarEvent.update({ where: { id: slots[i].id }, data: { lessonId: lessons[i].id } });
+      // Unused empty stubs are recycled for open slots before creating new ones.
+      const leftovers = lessons.filter((l) => !used.has(l.id));
+      const spareStubs = leftovers.filter(isEmptyStub);
+      let lessonsCreated = 0;
+      for (let i = 0; i < slots.length; i++) {
+        if (slotLesson[i]) continue;
+        const l = spareStubs.shift() ?? (lessonsCreated++, await tx.lesson.create({ data: { subjectId, sequenceOrder: 0, title: "" } }));
+        slotLesson[i] = l;
+        used.add(l.id);
       }
-    }
-    return { lessonsCreated };
-  }, { timeout: 60_000 });
+
+      const unscheduled = lessons.filter((l) => !used.has(l.id));
+      for (const l of unscheduled.filter(isEmptyStub)) await tx.lesson.delete({ where: { id: l.id } });
+      const kept = unscheduled.filter((l) => !isEmptyStub(l));
+
+      const ordered = [...(slotLesson as Lesson[]), ...kept];
+      for (let i = 0; i < ordered.length; i++) {
+        if (ordered[i].sequenceOrder !== i) await tx.lesson.update({ where: { id: ordered[i].id }, data: { sequenceOrder: i } });
+      }
+
+      await tx.calendarEvent.updateMany({ where: { lessonId: { in: lessons.map((l) => l.id) }, NOT: slotWhere(subjectId) }, data: { lessonId: null } });
+      for (let i = 0; i < slots.length; i++) {
+        if (slots[i].lessonId !== slotLesson[i]!.id) await tx.calendarEvent.update({ where: { id: slots[i].id }, data: { lessonId: slotLesson[i]!.id } });
+      }
+      return { lessonsCreated };
+    },
+    { timeout: 60_000 },
+  );
 }
 
 function isEmptyStub(l: Lesson): boolean {
@@ -67,7 +93,7 @@ export async function reorderLessons(subjectId: string, orderedIds: string[]) {
   await prisma.$transaction(
     orderedIds.map((id, i) => prisma.lesson.update({ where: { id }, data: { sequenceOrder: i } })),
   );
-  await assignSlots(subjectId);
+  await assignSlots(subjectId, "positional");
 }
 
 type LessonWithRelations = Lesson & { calendarEvents: CalendarEvent[]; tasks: { isCompleted: boolean }[] };
@@ -103,7 +129,22 @@ export function toLessonDTO(l: LessonWithRelations, now = new Date()): LessonDTO
       : null,
     status: lessonStatus(l, ev?.startTime ?? null, ev?.endTime ?? null, now),
     openTaskCount: l.tasks.filter((t) => !t.isCompleted).length,
+    files: { names: [], total: 0 },
   };
+}
+
+const PREVIEW_FILES = 3;
+
+/** Fills card file previews; only lessons with a folder touch the disk. */
+export async function withFiles(dtos: LessonDTO[], storage: StorageService): Promise<LessonDTO[]> {
+  await Promise.all(
+    dtos.map(async (d) => {
+      if (!d.folderPath) return;
+      const files = await storage.list(d.folderPath).catch(() => []);
+      d.files = { names: files.slice(0, PREVIEW_FILES).map((f) => f.name), total: files.length };
+    }),
+  );
+  return dtos;
 }
 
 export async function subjectStats(subjectId: string, now = new Date()): Promise<SubjectStats> {

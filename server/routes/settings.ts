@@ -21,6 +21,7 @@ export async function loadSettings(userId: string): Promise<SettingsDTO> {
     lastSyncSummary: s?.lastSyncSummary ?? null,
     aiEnabled: aiEnabled(),
     aiModel: AI_MODEL,
+    pendingSources: await prisma.eventSource.count({ where: { userId, reviewed: false, eventCount: { gt: 0 } } }),
     platform: process.platform,
   };
 }

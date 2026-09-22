@@ -1,148 +1,110 @@
-# UI Design System Prompt — KanbanClass
+# KanbanClass: brief for Claude Design
 
-> Paste everything below the line into a design assistant (Claude Design, v0, Figma Make, or similar). It asks for a design system, three screen mockups, and React + Tailwind component code that matches the app's real data model.
+> **How to use:** open Claude Design (claude.ai/design) and start a new design. Paste everything below the line. Attach 2–4 screenshots of the running app (Subjects board, a lesson drawer, the dashboard, the Categories modal) and say "this is the current version; redesign it". Hand the result back to Claude Code to wire into `src/`.
 
 ---
 
-## Your role
+## What you're designing
 
-You are a senior product designer who also writes production React. Design the visual system and core screens for **KanbanClass**, a local-first desktop web app that helps a secondary-school teacher plan a full school year of lessons. Then deliver the design as React 19 + Tailwind CSS v4 components using `lucide-react` icons.
+KanbanClass is a desktop web app a Danish secondary-school teacher uses to plan a full school year. Their fixed timetable comes in from the school system as an iCal feed. Every timetable slot becomes a **lesson card** in a Kanban column per subject ("Fysik 10", "Matematik 10A", "10. klasse dansk"). The teacher writes the plan on each card, sets homework, and keeps files in a folder per lesson.
 
-## Who uses it and why
+The current build works but looks unpolished. **Redesign it to feel like ClickUp: clean, calm, dense but airy, obviously a professional tool.** Keep every feature described below. You are changing the look, spacing and hierarchy, not the product.
 
-One teacher, on a laptop, usually with 3–6 subjects (for example "Fysik 10", "Matematik 10A", "Kemi 9B"). Their fixed timetable comes from the school system as an iCal feed. The app turns every timetable slot into a lesson card they can plan, reorder, attach files to, and set homework for.
+## Look and feel
 
-They open it in two moods:
+- **Reference: ClickUp's board view.** White canvas, light-grey column backgrounds, white cards with a hairline border and a whisper of shadow, and status pills with soft tinted backgrounds. Column headers are a small coloured pill (uppercase subject name) with a count next to it. Hierarchy comes from generous inner padding and a few type sizes, not from boxes inside boxes.
+- **Avoid:** heavy borders, nested outlined panels, too many font sizes, all-caps everywhere, and coloured left-edge stripes on every card.
+- **Light theme first,** with a matching dark theme (cool near-black, surfaces lifted by lightness, not shadows).
+- **Type:** Inter, 13px base, 14px semibold card titles, 11px meta. Use tabular numerals for dates, times and counts.
+- **Colour:** one accent (ClickUp-style violet, around `#6b5cf0`). Each subject has a user-picked hex colour, used only for its column pill, a small dot and progress bars. Status colours: done green, needs-plan amber, planned accent.
+- **Corners:** 8px on cards, 12px on columns and modals, full-round on pills.
+- Must work at 1440×900 and 1280×800. Danish text (æøå, longer words) must fit.
 
-1. **Monday morning triage.** "What is unplanned in the next two weeks, what homework must I post, what do I need to order?" This is the Dashboard.
-2. **Sunday planning session.** "Lay out the next unit of Fysik across its eight remaining slots." This is the Subject Kanban and the Lesson Drawer.
+## Screens
 
-Design for a power user. Density beats whitespace. Every screen should answer its question without scrolling on a 1440×900 display, and stay usable at 1280×800.
+### 1. Subjects board (most important)
 
-## Aesthetic and theme
+- A horizontally scrolling row of columns, 320px wide, one per subject. The last column is a renamable **special** column (default name "Additional") for prep that isn't tied to one subject, e.g. "Fagdag". Give it a subtle "Special" tag.
+- **Column header:** coloured subject pill + visible card count + hide (eye-off) button. Under it, a thin progress bar (completed / planned / remaining) with three small numbers.
+- Completed lessons are tucked into a "Show 22 completed lessons" row at the top of each column.
+- **Toolbar above the board:**
+  - Status filter pills: Needs plan, Unplanned, Planned, Unscheduled.
+  - A "Next 14 days" pill.
+  - On the right: a **Collapse all / Expand all** segmented control, and a **Categories** button with a "3 new" badge when new calendar entries need sorting.
 
-- **References:** ClickUp's board density and status chips; Notion's calm typography and quiet surfaces; Linear's crisp borders and keyboard-first feel. It should look like a serious tool, not a school-themed toy. No clip-art, no chalkboards, no apples.
-- **Light and dark themes are both first-class.** Build every token for both. Dark is not an inverted light theme: use a warm-neutral near-black base (not pure `#000`), and lift surfaces by lightness steps rather than shadows.
-- **Surfaces:** three elevation levels — app background, panel/column, card. Separate them with 1px hairline borders plus a small lightness step. Shadows only on floating layers (drawer, popovers, drag ghost).
-- **Corners:** 6px on cards and inputs, 10px on drawers and modals, full-round on chips and avatars.
-- **Motion:** 150ms ease-out for hovers and toggles, 220ms for the drawer slide. Respect `prefers-reduced-motion` by switching to fades.
+#### The lesson card: fixed height, three sections, expandable
 
-### Typography
+This is the core of the product. The teacher needs to see a lesson's **content, homework and files at a glance**, so every card shows all three, even when empty.
 
-- UI font: **Inter** (or the system UI stack as fallback). Monospace: **JetBrains Mono** for times, counts, and the Markdown editor.
-- Scale (px): 11 (meta/labels, uppercase, +0.04em tracking), 12 (card body, table), 13 (default UI), 15 (section titles), 20 (page title), 28 (metric numbers). Line height 1.4 for UI, 1.6 for Markdown prose.
-- Use tabular numerals everywhere numbers line up: counters, times, dates.
-
-### Color tokens
-
-Define these as CSS custom properties with a light and a dark value each, and expose them to Tailwind v4 via `@theme`:
-
-| Token | Purpose |
-|---|---|
-| `--bg` | App background |
-| `--surface` | Columns, sidebars, panels |
-| `--surface-raised` | Cards, inputs |
-| `--border` / `--border-strong` | Hairlines / focused or hovered borders |
-| `--text` / `--text-muted` / `--text-faint` | Three text levels |
-| `--accent` | Primary action (one brand hue, a confident blue-violet) |
-| `--success` / `--warning` / `--danger` / `--info` | Status semantics |
-| `--focus-ring` | 2px outline, always visible on keyboard focus |
-
-**Subject colors.** Each subject has a user-chosen hex color (default `#3b82f6`). Design the system so any hex works: derive a tinted background (≈12% alpha in light, ≈18% in dark), a solid 3px left rail, and a text color that meets WCAG AA on the tint. Provide a curated picker palette of 12 hues that all pass AA in both themes.
-
-## Data the UI shows
-
-Use these real field names in props and sample data so the components drop straight into the app.
-
-- **Subject:** `id`, `name`, `color`, plus computed `stats { completed, planned, remainingSlots, totalSlots }`.
-- **Lesson (a card):** `id`, `subjectId`, `sequenceOrder`, `title`, `lessonType` (`standard` | `lab` | `test` | `excursion` | `project`), `bodyText` (Markdown), `folderPath`, `homeworkText`, `homeworkOffset` (days before lesson), `homeworkPostedAt`, `isPlanned`, and its slot `{ startTime, endTime, room, group }` (a lesson may have no slot yet).
-- **CalendarEvent:** `summary`, `startTime`, `endTime`, `subjectName`, `group`, `room`, `eventType` (`lesson` | `pause` | `meeting` | `supervision` | `other`), `isIgnored`.
-- **Task:** `title`, `dueDate`, `isCompleted`, `isAutoGenerated`, optional `lessonId` (links back to a lesson).
-
-**Card status** is derived, not stored. Design a badge for each:
-
-| Status | Rule | Visual |
+| Part | Collapsed (default) | Expanded |
 |---|---|---|
-| Done | Slot is in the past | Muted card, check icon, `--success` badge |
-| Planned | Has body notes, slot in future | Normal card, `--accent` outline badge |
-| Needs plan | Empty notes, slot within 14 days | `--warning` badge with alert icon. The most important state on the board: make it pop without shouting |
-| Unplanned | Empty notes, slot further out | Faint dashed badge |
-| No slot | Lesson has no calendar slot | Grey "Unscheduled" badge |
+| Header | Drag handle (on hover), `#23`, short date and time (`Wed 23/9 · 08:00`), room, status pill on the right | same |
+| Title | One line, 14px semibold. Untitled lessons show "Lesson 23" in muted grey | same |
+| **Plan** | Small label with icon. The first ~3 lines of the notes as plain text (headings stripped, bullets shown as •, checkboxes as ☐), clipped with an ellipsis. Italic grey "No plan yet" when empty | Full rendered Markdown |
+| **Homework** | Label + "Post Sun 20/9" (release date) on the right. One line of homework text, or "No homework" | Full text |
+| **Files** | Label + file count. One line: `worksheet.pdf, slides.pptx +2`, or "No files" | Full file list |
+| Footer | Open-task count on the left; "Show more ⌄" on the right | "Show less ⌃" |
 
-## Screens to mock up
+- **All collapsed cards are exactly the same height**, whatever they contain, so columns line up into a clean grid. Show one card of each state: rich (all three sections filled), partly filled, and empty.
+- Status pills: **Done** (green, check), **Planned** (accent outline), **Needs plan** (amber, alert icon; the one that should catch the eye), **Unplanned** (faint dashed), **Unscheduled** (grey).
+- No lesson-type icons and no template UI anywhere. Both are gone in this version.
+- Drag state: lifted card, slight tilt, drop indicator line.
 
-### 1. App shell
+### 2. Lesson drawer (opens from a card)
 
-- **Left sidebar (collapsible, 232px ↔ 56px icon rail):** app mark, nav (Dashboard, Subjects board, Calendar sources/Settings), then a **Subjects** list where each row has a color dot, the name, a small count ("12/38"), and an eye toggle controlling whether its column is visible on the board. Footer: sync status ("Synced 08:14 · 412 events"), a Sync button with a spinning state, and the theme toggle (light / dark / system).
-- **Top bar (48px):** page title, breadcrumb when inside a subject, global search (⌘K / Ctrl+K hint), and a "New task" button.
+- A 560px slide-over from the right. The header has the subject pill, `#23`, status, an editable title, then date · time · room · group. Up/down chevrons step to the previous/next lesson, and there's a close button. A small "Saved 10:42" indicator.
+- **Tabs:** Planning · Homework · Local files.
+  - **Planning:** Markdown editor (toolbar: heading, bold, list, checklist, link; Write / Split / Preview). Below it, an "Action items found" strip of chips (auto-extracted to-dos like "Order copper sulfate").
+  - **Homework:** text area, then a sentence-style control "Remind me [7] days before the lesson" with 1d / 3d / 7d / 14d presets, then "Release on Mon 21 Sept" and a status line. Buttons: "Mark posted", and "Post to LMS" disabled with a "coming soon" tooltip.
+  - **Local files:** folder path with a copy button, a primary "Open in File Explorer" button, and a compact file list (icon, name, size, date) or an empty state.
 
-### 2. Subject Kanban view
+### 3. Categories modal (new: needs the most design help)
 
-- One column per visible subject, 300px wide, horizontally scrollable board. Column header: color rail, subject name, a thin progress bar (completed vs total slots), and a `⋯` menu (hide column, change color, open subject folder).
-- Cards stack chronologically by `sequenceOrder`. Each card, roughly 72–88px tall:
-  - Row 1: drag handle (six-dot `GripVertical`, visible on hover and always on touch), lesson number (`#12`), title (one line, ellipsis).
-  - Row 2: date + time in mono (`Tue 14 Oct · 08:15–09:45`), room chip, lesson-type icon (flask for lab, clipboard for test, bus for excursion).
-  - Row 3 (only if present): status badge, homework icon with release date, folder icon, count of linked open tasks.
-- **Drag and drop:** vertical reordering within a column only. Show the drag ghost as a lifted card (shadow, 2° tilt, 95% opacity) and a 2px accent insertion line at the drop target. The app will swap which calendar slot each lesson occupies, so after the drop show a brief inline toast: "Lessons #12 and #13 swapped dates · Undo".
-- Past cards collapse into a "Show 14 completed lessons" row at the top of each column by default.
-- Include a **filter bar** above the board: toggle chips for card status (Needs plan, Planned, Done, Unscheduled) and a "Next 14 days" quick filter.
-- States: empty column ("No slots found for this subject. Check calendar filters."), loading skeleton columns, and a column with 60+ cards (show that it stays readable).
+This opens automatically the first time a calendar import brings in new kinds of entries. It can also be reopened from the board toolbar or Settings. It is itself a small Kanban:
 
-### 3. Lesson Details Drawer
+- **Wide centred modal** (~1280px). Header: icon, "Organize calendar categories", one line of explanation, a "11 new" badge, and a close button.
+- **Pinned on the left: "Not needed."** Entries dropped here stay on the calendar but never become lesson cards (e.g. "Galla", "Extra tid", "Gårdvagt", "Lærermøde"). Dashed outline, neutral grey.
+- **Then one column per board column:**
+  - Colour dot (click to change) and an inline-editable name.
+  - A Subject / Special toggle tag, a "155 slots" count, and a remove button.
+- **Entry chips** inside columns: drag handle, name ("Fagdag Fysik"), a "New" badge if unseen, and a meta line ("Event · 2 times · 14 Oct"). There's also a small move-to menu icon for keyboard users.
+- Merging is the key idea. Dropping "Fagdag Fysik" into the "Fysik 10" column makes those days part of Fysik's lesson sequence. Show a column holding two merged entries.
+- After the columns: dashed "+ Subject column" and "+ Special column" buttons, with a line of help text.
+- **Footer:** "11 calendar entries · 5 columns · 4 not needed", then Cancel and "Save categories" (primary).
+- Show the drop-target highlight while dragging.
 
-- Slides over from the right, 560px wide (full width under 900px), over a 40% scrim. The board stays visible behind it. Esc closes; ↑/↓ moves to the previous/next lesson in the same subject.
-- **Header:** subject tag (color chip), editable title (inline, large), lesson number, slot date/time/room, status badge, and a lesson-type selector.
-- **Tabs:** Planning · Homework · Local files. Show the unsaved/saved state ("Saved · 2s ago") in the header.
-- **Planning tab:**
-  - Template picker (a segmented control or menu: Standard, Lab lesson, Test, Excursion, Project). Choosing one on a non-empty body opens a small confirm popover: "Insert template above existing notes?" with Insert / Replace / Cancel.
-  - Markdown editor container: toolbar (H2, bold, bullet list, checklist, link), a Write / Preview / Split toggle, mono-font textarea, rendered preview using the app's prose styles.
-  - Below the editor, an **"Action items found"** strip: AI-extracted tasks from the notes (e.g. "Order copper sulfate — due Fri 10 Oct") as removable chips with a sparkle icon and an "Added to tasks" confirmation.
-- **Homework tab:** homework Markdown/text field; a release trigger control reading as a sentence: "Remind me [7] days before the lesson" (stepper plus presets 1, 3, 7, 14); a computed line "Release on Tue 7 Oct"; the posting status (Not yet due / Due to post / Posted 7 Oct via Manual). Leave a disabled "Post to LMS" button with a "Lectio / Google Classroom coming in V2" tooltip.
-- **Local files tab:** the folder path in mono with a copy button; primary button **"Open in File Explorer"** (label switches to "Open in Finder" on macOS); "Create folder" when none exists; a compact file list (icon by type, name, size, modified) with an empty state that invites dropping files into the folder.
+### 4. Dashboard (lighter touch)
 
-### 4. Dashboard
+- **Top row:** one metric card per subject (Completed / Planned / Remaining, a big number each, and a stacked progress bar).
+- **Left, about 2/3 width:** a Monday–Friday week grid, 08:00–16:00, with events as blocks tinted by subject colour. Pauses and ignored events are hatched and faint. Above the grid: event-type filter pills with counts (Lessons, Pauses, Meetings, Supervision, Other).
+- **Right, about 1/3:** stacked collapsible panels:
+  - "Unplanned · next 14 days" (amber count, a "Plan" button per row)
+  - "Homework to post" ("Mark posted" per row)
+  - "Tasks" (checkbox, title, due date, sparkle icon on auto-extracted ones, link to the lesson)
+- When new calendar entries need sorting, a slim accent banner across the top: "3 new kinds of calendar entries to sort into your columns · Review".
 
-Three-zone layout on a 12-column grid:
+### 5. App shell
 
-- **Top band (full width): subject metric cards.** One per subject, in a horizontal row that wraps. Each card: color rail, subject name, three numbers in 28px tabular type — **Completed**, **Planned**, **Remaining slots** — and a stacked progress bar (completed / planned-but-upcoming / unplanned). Clicking a card jumps to that subject's column on the board.
-- **Left zone (8 cols): weekly calendar grid.** Monday–Friday columns, time rows 08:00–16:00 with 15-minute gridlines at low contrast, events as blocks tinted by subject color. Pauses and ignored events render as faint hatched blocks, or are hidden by the filter. Week navigation (‹ Today ›) and a week number ("Uge 41" / "Week 41"). Above the grid, **event-type toggle chips**: Lessons, Pauses, Meetings, Supervision, Other — each chip shows a count and toggles visibility. Clicking a day header or empty cell opens the **Day slide-over**: that day's lessons in order, each with status, attached files (count + first three names), and homework status, plus buttons to open the lesson drawer.
-- **Right zone (4 cols): action queue.** Stacked sections, each collapsible with a count badge:
-  1. **Unplanned lessons (next 14 days)**: warning tone, one row per lesson with subject chip, date, and a "Plan" button that opens the drawer.
-  2. **Homework to post**: rows with release date, subject, lesson, a "Mark posted" button.
-  3. **Tasks**: manual and AI-generated tasks. Checkbox, title, due date (red when overdue), a sparkle icon on auto-generated ones, and a link icon to the source lesson. Inline "Add task" row at the top.
-
-## Component specs to deliver
-
-For each component: anatomy, sizes, all states (default, hover, focus-visible, active, disabled, loading, error), light and dark renders, and a React + Tailwind implementation with typed props.
-
-1. **SubjectTag**: color dot or tinted pill with the subject name. Sizes `sm` (18px) and `md` (22px). Optional remove `×`. Must stay legible for any hex color.
-2. **FilterChip / ToggleChip**: pill with optional leading icon, label, and count. `aria-pressed` states: on (tinted + border), off (outline, muted text), mixed. Used for calendar event types and board status filters.
-3. **StatusBadge**: the five card statuses above. 18px tall, icon + label, compact variant (icon only with tooltip).
-4. **ProgressBar**: thin (4px) and regular (8px); single value or stacked segments; optional label "12 / 38 lessons"; rounded ends; animated fill on change.
-5. **MetricCard**: the dashboard counter card described above.
-6. **LessonCard**: the Kanban card, including its drag-handle and dragging states.
-7. **KanbanColumn**: header, collapsed-past row, scroll container, empty and loading states.
-8. **Drawer**: slide-over shell with header, tabs, a sticky footer slot, and a focus trap.
-9. **MarkdownEditor**: toolbar, write/preview/split, character count, a "template inserted" highlight flash.
-10. **TaskRow**: checkbox, title, due date, auto-generated sparkle, lesson link, overflow menu.
-11. **WeekGrid** and **EventBlock**: calendar grid, event tint, hatched "ignored" style, current-time line.
-12. **Toast**: success, info, and undo variants, bottom-left, stacking.
-13. **Button** (primary, secondary, ghost, danger; sm/md) and **IconButton**, each with a loading spinner state.
-
-## Accessibility and interaction rules
-
-- WCAG 2.2 AA contrast for all text in both themes, including text on subject tints.
-- Every interactive element has a visible `:focus-visible` ring using `--focus-ring`.
-- Drag and drop must have a keyboard alternative: focus a card, press Space to lift, ↑/↓ to move, Space to drop, Esc to cancel. Announce moves via an ARIA live region.
-- Color is never the only signal: statuses carry icons and labels, and subjects carry names.
-- Minimum hit area 28×28px on desktop, 40×40px on touch layouts.
-- Danish-language content must fit: plan for longer labels ("Planlagte lektioner"), `æ ø å` in all fonts, and week numbers ("Uge 41").
+- **Left sidebar (232px, collapsible to 56px):** "KC" logo mark + "KanbanClass". Navigation: Dashboard / Subjects board / Calendar & settings. A "Subjects" list with colour dot, name, `22/155` count and an eye toggle on hover. At the bottom: sync status, a sync button and a theme toggle.
+- **Top bar (48px):** page title and today's date.
 
 ## Deliverables
 
-1. A **design-token sheet**: the CSS custom properties for light and dark, and the Tailwind v4 `@theme` block that maps them.
-2. **High-fidelity mockups** of: App shell + Subject Kanban (light), Kanban mid-drag (dark), Lesson Drawer on each of its three tabs, Dashboard (light and dark), Day slide-over.
-3. **React components** (`.tsx`, function components, typed props, no external UI kit beyond `lucide-react`) for everything in *Component specs*, plus the three screen layouts assembled from them with realistic sample data: three subjects ("Fysik 10" `#3b82f6`, "Matematik 10A" `#10b981`, "Kemi 9B" `#f59e0b`), about 30 lessons each, a mix of all five statuses, and some Danish lesson titles ("Elektricitet og kredsløb", "Lineære funktioner").
-4. A short **usage note** per component: when to use it and when not to.
+1. **Design tokens** as CSS custom properties, light and dark, plus the Tailwind v4 `@theme inline` block that maps them. Keep these names so the app can swap them in directly: `--bg --surface --surface-raised --surface-hover --border --border-strong --text --text-muted --text-faint --accent --accent-soft --accent-fg --success --warning --danger --info --focus-ring --scrim --shadow-float`.
+2. **Mockups:** Subjects board (collapsed and expanded, light and dark), lesson drawer (all three tabs), Categories modal (including mid-drag), and Dashboard.
+3. **React 19 + Tailwind v4 components** in TypeScript, presentational only (props in, callbacks out), `lucide-react` icons, no other UI kit: `LessonCard`, `KanbanColumn`, `BoardToolbar`, `StatusBadge`, `SubjectPill`, `ProgressBar`, `CategoryColumn`, `SourceChip`, `LessonDrawer` shell with tabs, `MetricCard`, `WeekGrid`, `TaskRow`, `Button`, `ToggleChip`.
 
-Keep components presentational: they take data and callbacks as props and hold no fetching logic, so they can be wired to the app's React Query hooks afterwards.
+Use these data shapes (they match the app), with realistic Danish sample data: 4 subjects plus one special column, a mix of every status, some cards with long notes, homework and 4+ files, and some empty.
+
+```ts
+type LessonStatus = "done" | "planned" | "needs-plan" | "unplanned" | "no-slot";
+interface Lesson {
+  id: string; sequenceOrder: number; title: string; bodyText: string; // Markdown
+  homeworkText: string | null; homeworkOffset: number | null; homeworkPostedAt: string | null;
+  slot: { startTime: string; endTime: string; room: string | null; group: string | null } | null;
+  status: LessonStatus; openTaskCount: number;
+  files: { names: string[]; total: number }; // first 3 names + total
+}
+interface Subject { id: string; name: string; color: string; kind: "subject" | "special"; stats: { completed: number; planned: number; remainingSlots: number; totalSlots: number } }
+interface CalendarSource { id: string; label: string; eventType: "lesson" | "meeting" | "supervision" | "other"; eventCount: number; reviewed: boolean; nextDate: string | null }
+```

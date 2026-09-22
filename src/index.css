@@ -2,17 +2,17 @@
 
 /* Design tokens — light default, dark via system preference or explicit data-theme. */
 :root {
-  --bg: #f6f6f4;
-  --surface: #fbfbfa;
+  --bg: #ffffff;
+  --surface: #f6f7f9;
   --surface-raised: #ffffff;
-  --surface-hover: #f1f1ee;
-  --border: #e6e5e1;
-  --border-strong: #cfcdc7;
-  --text: #1c1b19;
-  --text-muted: #5f5d58;
-  --text-faint: #8f8c85;
-  --accent: #5b4cf0;
-  --accent-soft: #5b4cf01a;
+  --surface-hover: #eff1f4;
+  --border: #e4e7ec;
+  --border-strong: #cdd2da;
+  --text: #1f2329;
+  --text-muted: #58606d;
+  --text-faint: #8a919d;
+  --accent: #6b5cf0;
+  --accent-soft: #6b5cf014;
   --accent-fg: #ffffff;
   --success: #15803d;
   --warning: #b45309;
@@ -26,18 +26,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #151412;
-    --surface: #1b1a18;
-    --surface-raised: #23221f;
-    --surface-hover: #2a2926;
-    --border: #2f2e2a;
-    --border-strong: #45433e;
-    --text: #edece8;
-    --text-muted: #aeaba4;
-    --text-faint: #7d7a73;
-    --accent: #8b80ff;
-    --accent-soft: #8b80ff24;
-    --accent-fg: #14121f;
+    --bg: #16171a;
+    --surface: #1d1e22;
+    --surface-raised: #25262b;
+    --surface-hover: #2c2e33;
+    --border: #32343a;
+    --border-strong: #464950;
+    --text: #eceef1;
+    --text-muted: #a8adb6;
+    --text-faint: #7b808a;
+    --accent: #8f82ff;
+    --accent-soft: #8f82ff24;
+    --accent-fg: #15131f;
     --success: #4ade80;
     --warning: #fbbf24;
     --danger: #fb923c;
@@ -50,18 +50,18 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #151412;
-  --surface: #1b1a18;
-  --surface-raised: #23221f;
-  --surface-hover: #2a2926;
-  --border: #2f2e2a;
-  --border-strong: #45433e;
-  --text: #edece8;
-  --text-muted: #aeaba4;
-  --text-faint: #7d7a73;
-  --accent: #8b80ff;
-  --accent-soft: #8b80ff24;
-  --accent-fg: #14121f;
+  --bg: #16171a;
+  --surface: #1d1e22;
+  --surface-raised: #25262b;
+  --surface-hover: #2c2e33;
+  --border: #32343a;
+  --border-strong: #464950;
+  --text: #eceef1;
+  --text-muted: #a8adb6;
+  --text-faint: #7b808a;
+  --accent: #8f82ff;
+  --accent-soft: #8f82ff24;
+  --accent-fg: #15131f;
   --success: #4ade80;
   --warning: #fbbf24;
   --danger: #fb923c;
@@ -197,4 +197,18 @@ body {
   .animate-drawer {
     animation: fade-in 150ms ease-out;
   }
+}
+
+/* Expanded lesson cards: compact Markdown. */
+.prose-card {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.prose-card h1,
+.prose-card h2,
+.prose-card h3 {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0.6em 0 0.15em;
 }

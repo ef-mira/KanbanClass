@@ -6,6 +6,7 @@ import { KanbanBoard } from "./views/KanbanBoard";
 import { Settings } from "./views/Settings";
 import { LessonDrawer } from "./views/LessonDrawer";
 import { DaySlideOver } from "./views/DaySlideOver";
+import { CategoriesModal } from "./views/CategoriesModal";
 
 const TITLES: Record<View, string> = { dashboard: "Dashboard", board: "Subjects board", settings: "Calendar & settings" };
 
@@ -19,6 +20,13 @@ export function App() {
   const [focusSubjectId, setFocusSubjectId] = useState<string | null>(null);
   const [lessonId, setLessonId] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+
+  useEffect(() => {
+    const onNew = () => setCategoriesOpen(true);
+    window.addEventListener("kc:new-sources", onNew);
+    return () => window.removeEventListener("kc:new-sources", onNew);
+  }, []);
 
   useEffect(() => {
     const onHash = () => setView(readHash());
@@ -33,7 +41,7 @@ export function App() {
   }, []);
 
   const nav: Nav = useMemo(
-    () => ({ view, go, focusSubjectId, openLesson: setLessonId, openDay: setDay }),
+    () => ({ view, go, focusSubjectId, openLesson: setLessonId, openDay: setDay, openCategories: () => setCategoriesOpen(true) }),
     [view, go, focusSubjectId],
   );
 
@@ -56,6 +64,7 @@ export function App() {
         </main>
       </div>
       <DaySlideOver date={day} onClose={() => setDay(null)} />
+      <CategoriesModal open={categoriesOpen} onClose={() => setCategoriesOpen(false)} />
       <LessonDrawer lessonId={lessonId} onClose={() => setLessonId(null)} onNavigate={setLessonId} />
     </NavContext.Provider>
   );

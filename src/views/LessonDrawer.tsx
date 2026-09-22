@@ -20,13 +20,11 @@ import {
   Sparkles,
   Undo2,
 } from "lucide-react";
-import { LESSON_TYPES, type LessonDTO, type LessonType } from "../../shared/types";
-import { LESSON_TEMPLATES } from "../../shared/templates";
+import type { LessonDTO } from "../../shared/types";
 import { useLesson, useLessonAction, useLessonFiles, useLessons, useSaveLesson, useSettings, useSubjects, type LessonSaveResult } from "../api";
 import { fmtBytes, fmtDate, fmtDay, fmtSlot, relativeDays } from "../lib/format";
 import { Button, cx, Drawer, DrawerClose, Empty, IconButton, Skeleton, StatusBadge, SubjectTag } from "../components/ui";
 import { useToast } from "../components/toast";
-import { LESSON_TYPE_ICON } from "./KanbanBoard";
 
 type Tab = "planning" | "homework" | "files";
 
@@ -129,31 +127,6 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
     return () => document.removeEventListener("keydown", onKey);
   });
 
-  const folderAction = useLessonAction(lesson.id);
-  const applyTemplate = (type: LessonType, mode: "insert" | "replace") => {
-    const tpl = LESSON_TEMPLATES[type];
-    const previous = bodyText;
-    const newBody = mode === "replace" || !bodyText.trim() ? tpl.body : `${tpl.body}
-${bodyText}`;
-    setBodyText(newBody);
-    lastServerBody.current = newBody;
-    save.mutate(
-      { bodyText: newBody, lessonType: type, ...(title.trim() !== lesson.title && { title: title.trim() }) },
-      {
-        onSuccess: () => {
-          setSavedAt(new Date());
-          if (tpl.createsFolder) folderAction.mutate({ kind: "folder" }, { onError: (e) => toast({ kind: "error", text: `Folder not created: ${e.message}` }) });
-          toast({
-            kind: "success",
-            text: `${tpl.label} template ${mode === "replace" ? "applied" : "inserted"}${tpl.createsFolder ? " · lesson folder created" : ""}`,
-            action: previous ? { label: "Undo", run: () => setBodyText(previous) } : undefined,
-          });
-        },
-        onError: (e) => toast({ kind: "error", text: e.message }),
-      },
-    );
-  };
-
   const close = () => {
     doSave();
     onClose();
@@ -197,7 +170,6 @@ ${bodyText}`;
             </span>
           )}
           {lesson.slot?.group && <span>{lesson.slot.group}</span>}
-          <LessonTypeSelect lesson={lesson} onChange={(lessonType) => save.mutate({ lessonType })} />
         </div>
         <div role="tablist" className="mt-3 flex gap-4">
           {(["planning", "homework", "files"] as Tab[]).map((t) => (
@@ -215,7 +187,7 @@ ${bodyText}`;
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        {tab === "planning" && <PlanningTab onTemplate={applyTemplate} busy={save.isPending} bodyText={bodyText} setBodyText={setBodyText} onBlur={doSave} lastResult={lastResult} />}
+        {tab === "planning" && <PlanningTab bodyText={bodyText} setBodyText={setBodyText} onBlur={doSave} lastResult={lastResult} />}
         {tab === "homework" && (
           <HomeworkTab lesson={lesson} text={homeworkText} setText={setHomeworkText} offset={homeworkOffset} setOffset={setHomeworkOffset} dirty={dirty} onBlur={doSave} />
         )}
@@ -225,46 +197,19 @@ ${bodyText}`;
   );
 }
 
-function LessonTypeSelect({ lesson, onChange }: { lesson: LessonDTO; onChange: (t: LessonType) => void }) {
-  const Icon = LESSON_TYPE_ICON[lesson.lessonType];
-  return (
-    <label className="inline-flex items-center gap-1 rounded-md px-1 hover:bg-hover">
-      <Icon className="size-3.5" />
-      <select value={lesson.lessonType} onChange={(e) => onChange(e.target.value as LessonType)} className="bg-transparent text-xs outline-none" aria-label="Lesson type">
-        {LESSON_TYPES.map((t) => (
-          <option key={t} value={t}>
-            {LESSON_TEMPLATES[t].label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function PlanningTab({
-  onTemplate,
-  busy,
   bodyText,
   setBodyText,
   onBlur,
   lastResult,
 }: {
-  onTemplate: (type: LessonType, mode: "insert" | "replace") => void;
-  busy: boolean;
   bodyText: string;
   setBodyText: (s: string) => void;
   onBlur: () => void;
   lastResult: LessonSaveResult | null;
 }) {
   const [mode, setMode] = useState<"write" | "preview" | "split">("write");
-  const [confirmType, setConfirmType] = useState<LessonType | null>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
-
-  const applyTemplate = (type: LessonType, m: "insert" | "replace") => {
-    setConfirmType(null);
-    onTemplate(type, m);
-  };
-  const pickTemplate = (type: LessonType) => (bodyText.trim() ? setConfirmType(type) : applyTemplate(type, "replace"));
 
   /** Wraps the selection or prefixes the current line — minimal Markdown toolbar. */
   const format = (kind: "h2" | "bold" | "list" | "check" | "link") => {
@@ -299,37 +244,6 @@ function PlanningTab({
 
   return (
     <div className="space-y-3">
-      <div>
-        <div className="mb-1.5 text-[11px] font-medium tracking-wide text-faint uppercase">Template</div>
-        <div className="relative flex flex-wrap gap-1.5">
-          {LESSON_TYPES.map((t) => {
-            const Icon = LESSON_TYPE_ICON[t];
-            return (
-              <Button key={t} size="sm" icon={<Icon className="size-3.5" />} onClick={() => pickTemplate(t)} disabled={busy}>
-                {LESSON_TEMPLATES[t].label}
-              </Button>
-            );
-          })}
-          {confirmType && (
-            <div className="animate-fade absolute top-full left-0 z-10 mt-1.5 w-72 rounded-lg border border-line bg-raised p-3 shadow-float" role="dialog" aria-label="Apply template">
-              <div className="text-[13px] font-medium">Apply “{LESSON_TEMPLATES[confirmType].label}”?</div>
-              <div className="mt-0.5 text-xs text-muted">This lesson already has notes.</div>
-              <div className="mt-2.5 flex gap-1.5">
-                <Button size="sm" variant="primary" onClick={() => applyTemplate(confirmType, "insert")}>
-                  Insert above
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => applyTemplate(confirmType, "replace")}>
-                  Replace
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setConfirmType(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="flex items-center gap-0.5 rounded-md border border-line bg-raised p-1">
         <IconButton label="Heading" onClick={() => format("h2")} disabled={mode === "preview"}>
           <Heading2 className="size-4" />
@@ -362,7 +276,7 @@ function PlanningTab({
             value={bodyText}
             onChange={(e) => setBodyText(e.target.value)}
             onBlur={onBlur}
-            placeholder="Plan this lesson in Markdown, or pick a template above…"
+            placeholder="Plan this lesson in Markdown…"
             aria-label="Lesson notes"
             className="min-h-[320px] w-full resize-y rounded-md border border-line bg-raised p-3 font-mono text-[12.5px] leading-relaxed outline-none focus:border-line-strong"
           />
@@ -523,7 +437,7 @@ function FilesTab({ lesson }: { lesson: LessonDTO }) {
             </IconButton>
           </div>
         ) : (
-          <div className="text-xs text-faint">No folder yet. It's created automatically by lab, test, excursion and project templates, or on demand.</div>
+          <div className="text-xs text-faint">No folder yet. Create one to keep worksheets, slides and lab sheets for this lesson.</div>
         )}
         <div className="mt-3 flex gap-2">
           <Button

@@ -6,7 +6,8 @@ import { LESSON_TYPES, type LessonFilesDTO } from "../../shared/types";
 import { LESSON_TEMPLATES } from "../../shared/templates";
 import { hasMeaningfulContent } from "../../shared/planning";
 import { extractActionItems } from "../services/ai/extractActions";
-import { ensureLessonFolder, lessonInclude, toLessonDTO } from "../services/lessons";
+import { ensureLessonFolder, lessonInclude, toLessonDTO, withFiles } from "../services/lessons";
+import type { StorageService } from "../services/storage/StorageService";
 
 export const lessonsRouter = Router();
 
@@ -14,8 +15,9 @@ const DAY = 86_400_000;
 /** Default lead time for an extracted action item with no stated deadline. */
 const ACTION_LEAD_DAYS = 2;
 
-async function lessonDTO(id: string) {
-  return toLessonDTO(await prisma.lesson.findUniqueOrThrow({ where: { id }, include: lessonInclude }));
+async function lessonDTO(id: string, storage?: StorageService) {
+  const dto = toLessonDTO(await prisma.lesson.findUniqueOrThrow({ where: { id }, include: lessonInclude }));
+  return storage ? (await withFiles([dto], storage))[0] : dto;
 }
 
 /** Lessons whose slot falls on a given local date — backs the dashboard day slide-over. */
@@ -41,7 +43,7 @@ lessonsRouter.get("/", async (req, res) => {
 
 lessonsRouter.get("/:id", async (req, res) => {
   const lesson = await ownedLesson(req, req.params.id);
-  res.json(await lessonDTO(lesson.id));
+  res.json(await lessonDTO(lesson.id, req.ctx.storage));
 });
 
 const LessonPatch = z.object({

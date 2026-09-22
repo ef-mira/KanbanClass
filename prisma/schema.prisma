@@ -29,8 +29,11 @@ model Subject {
   name      String // e.g. "Fysik 10", "Matematik 10A"
   color     String          @default("#3b82f6")
   isVisible Boolean         @default(true)
+  kind      String          @default("subject") // subject | special (prep for events not tied to one subject)
+  sortOrder Int             @default(0) // column order on the board
   lessons   Lesson[]
   events    CalendarEvent[]
+  sources   EventSource[]
 
   @@unique([userId, name])
 }
@@ -71,13 +74,34 @@ model CalendarEvent {
   room        String?
   isPause     Boolean  @default(false)
   isIgnored   Boolean  @default(false) // manual per-event override
-  subjectId   String?
+  sourceId    String?
+  source      EventSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  subjectId   String? // derived from source mapping
   subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   lessonId    String?
   lesson      Lesson?  @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   @@unique([userId, externalId])
   @@index([userId, startTime])
+}
+
+// One row per distinct kind of calendar entry ("Fysik 10", "Fagdag Fysik",
+// "Galla"). The teacher maps each to a board column or marks it not needed.
+model EventSource {
+  id         String          @id @default(uuid())
+  userId     String          @default("local")
+  key        String // normalized label
+  label      String
+  eventType  String          @default("other")
+  eventCount Int             @default(0)
+  subjectId  String?
+  subject    Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  isIgnored  Boolean         @default(false) // "Not needed": stays on the calendar, never becomes lessons
+  reviewed   Boolean         @default(false) // false until the teacher has seen it in the category modal
+  createdAt  DateTime        @default(now())
+  events     CalendarEvent[]
+
+  @@unique([userId, key])
 }
 
 model Task {

@@ -5,7 +5,6 @@ import type {
   CategoriesSave,
   DashboardDTO,
   EventType,
-  FileEntry,
   LessonDTO,
   LessonFilesDTO,
   LessonType,
@@ -38,6 +37,7 @@ export const keys = {
   dashboard: ["dashboard"] as const,
   events: (from: string, to: string) => ["events", from, to] as const,
   day: (date: string) => ["day", date] as const,
+  range: (from: string, to: string) => ["range", from, to] as const,
   tasks: ["tasks"] as const,
   categories: ["categories"] as const,
 };
@@ -70,9 +70,49 @@ export const useEvents = (from: Date, to: Date) =>
       ),
   });
 
-export type DayLesson = LessonDTO & { subjectName: string; subjectColor: string; files: FileEntry[] };
+export type DayLesson = LessonDTO & { subjectName: string; subjectColor: string };
 export const useDay = (date: string | null) =>
   useQuery({ queryKey: keys.day(date ?? ""), queryFn: () => api<DayLesson[]>(`/lessons?date=${date}`), enabled: !!date });
+
+/** Lessons across all subjects between two local dates (inclusive), in time order. */
+export const useLessonRange = (from: string, to: string) =>
+  useQuery({ queryKey: keys.range(from, to), queryFn: () => api<DayLesson[]>(`/lessons?from=${from}&to=${to}`) });
+
+export function useReorderSubjects() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderedIds: string[]) => api<SubjectDTO[]>("/subjects/order", { method: "POST", body: { orderedIds } }),
+    onSuccess: (data) => qc.setQueryData(keys.subjects, data),
+  });
+}
+
+/** Uploads files one by one into the lesson folder (created on first upload). */
+export function useUploadFiles(lessonId: string) {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const saved: string[] = [];
+      for (const file of files) {
+        const res = await fetch(`/api/lessons/${lessonId}/files`, {
+          method: "POST",
+          // Always octet-stream so the server never tries to parse the body (e.g. a .json upload).
+          headers: { "content-type": "application/octet-stream", "x-file-name": encodeURIComponent(file.name) },
+          body: file,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `Upload failed (${res.status})`);
+        saved.push((data as { name: string }).name);
+      }
+      return saved;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.files(lessonId) });
+      qc.invalidateQueries({ queryKey: keys.lesson(lessonId) });
+      invalidate();
+    },
+  });
+}
 
 export function useUpdateSettings() {
   const qc = useQueryClient();

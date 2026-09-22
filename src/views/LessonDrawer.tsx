@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  BookOpen,
   Bold,
   CalendarClock,
   CheckSquare,
@@ -9,29 +8,33 @@ import {
   ChevronUp,
   Copy,
   File,
+  FileText,
   Folder,
   FolderOpen,
-  FolderPlus,
   Heading2,
+  Italic,
   Link2,
   List,
   MapPin,
+  Paperclip,
+  Plus,
   Send,
   Sparkles,
+  Trash2,
   Undo2,
+  Upload,
 } from "lucide-react";
 import type { LessonDTO } from "../../shared/types";
-import { useLesson, useLessonAction, useLessonFiles, useLessons, useSaveLesson, useSettings, useSubjects, type LessonSaveResult } from "../api";
+import { useLesson, useLessonAction, useLessonFiles, useLessons, useSaveLesson, useSettings, useSubjects, useUploadFiles, type LessonSaveResult } from "../api";
 import { fmtBytes, fmtDate, fmtDay, fmtSlot, relativeDays } from "../lib/format";
-import { Button, cx, Drawer, DrawerClose, Empty, IconButton, Skeleton, StatusBadge, SubjectTag } from "../components/ui";
+import { Button, cx, Drawer, DrawerClose, IconButton, Skeleton, StatusBadge, SubjectTag } from "../components/ui";
+import { MarkdownEditor, type MarkdownEditorHandle, type MarkdownFormat } from "../components/MarkdownEditor";
 import { useToast } from "../components/toast";
-
-type Tab = "planning" | "homework" | "files";
 
 export function LessonDrawer({ lessonId, onClose, onNavigate }: { lessonId: string | null; onClose: () => void; onNavigate: (id: string) => void }) {
   const { data: lesson } = useLesson(lessonId);
   return (
-    <Drawer open={!!lessonId} onClose={onClose} label="Lesson details">
+    <Drawer open={!!lessonId} onClose={onClose} width={640} label="Edit lesson">
       {!lesson ? (
         <div className="space-y-3 p-5">
           <Skeleton className="h-6 w-2/3" />
@@ -47,7 +50,6 @@ export function LessonDrawer({ lessonId, onClose, onNavigate }: { lessonId: stri
 }
 
 function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onClose: () => void; onNavigate: (id: string) => void }) {
-  const [tab, setTab] = useState<Tab>("planning");
   const { data: subjects } = useSubjects();
   const { data: siblings } = useLessons(lesson.subjectId);
   const subject = subjects?.find((s) => s.id === lesson.subjectId);
@@ -60,15 +62,6 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
   const [homeworkOffset, setHomeworkOffset] = useState<number | null>(lesson.homeworkOffset);
   const [lastResult, setLastResult] = useState<LessonSaveResult | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-
-  // Adopt server changes (e.g. template injection) when nothing is pending locally.
-  const lastServerBody = useRef(lesson.bodyText);
-  useEffect(() => {
-    if (lesson.bodyText !== lastServerBody.current) {
-      lastServerBody.current = lesson.bodyText;
-      setBodyText(lesson.bodyText);
-    }
-  }, [lesson.bodyText]);
 
   const dirty =
     title.trim() !== lesson.title ||
@@ -84,7 +77,6 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
       ...((homeworkText || null) !== (lesson.homeworkText || null) && { homeworkText: homeworkText || null }),
       ...(homeworkOffset !== lesson.homeworkOffset && { homeworkOffset }),
     };
-    lastServerBody.current = bodyText;
     save.mutate(patch, {
       onSuccess: (r) => {
         setSavedAt(new Date());
@@ -115,7 +107,8 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement).closest("input, textarea, select, [contenteditable]");
+      const target = e.target instanceof Element ? e.target : null;
+      const typing = target?.closest("input, textarea, select, [contenteditable]");
       if (typing) {
         if ((e.metaKey || e.ctrlKey) && e.key === "s") (e.preventDefault(), doSave());
         return;
@@ -134,10 +127,9 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
 
   return (
     <>
-      <div className="border-b border-line px-5 pt-3 pb-0">
+      <div className="border-b border-line px-6 pt-3 pb-4">
         <div className="flex items-center gap-2">
           {subject && <SubjectTag name={subject.name} color={subject.color} size="md" />}
-          <span className="font-mono text-xs text-faint">#{lesson.sequenceOrder + 1}</span>
           <StatusBadge status={lesson.status} />
           <span className="ml-auto text-[11px] text-faint" aria-live="polite">
             {save.isPending ? "Saving…" : dirty ? "Unsaved" : savedAt ? `Saved ${savedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
@@ -155,11 +147,11 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
           onChange={(e) => setTitle(e.target.value)}
           onBlur={doSave}
           aria-label="Lesson title"
-          placeholder={`Lesson ${lesson.sequenceOrder + 1}`}
-          className="mt-2 w-full rounded-md bg-transparent px-1 -mx-1 text-xl font-semibold outline-none hover:bg-hover focus:bg-hover"
+          placeholder="Add a title"
+          className="-mx-1 mt-2 w-full rounded-md bg-transparent px-1 text-xl font-semibold outline-none placeholder:text-faint hover:bg-hover focus:bg-hover"
         />
         <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
-          <span className="inline-flex items-center gap-1 font-mono">
+          <span className="inline-flex items-center gap-1">
             <CalendarClock className="size-3.5" />
             {lesson.slot ? fmtSlot(lesson.slot.startTime, lesson.slot.endTime) : "Unscheduled"}
           </span>
@@ -171,33 +163,28 @@ function LessonEditor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onCl
           )}
           {lesson.slot?.group && <span>{lesson.slot.group}</span>}
         </div>
-        <div role="tablist" className="mt-3 flex gap-4">
-          {(["planning", "homework", "files"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
-              className={cx("-mb-px border-b-2 pb-2 text-[13px] capitalize", tab === t ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:text-fg")}
-            >
-              {t === "files" ? "Local files" : t}
-            </button>
-          ))}
-        </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        {tab === "planning" && <PlanningTab bodyText={bodyText} setBodyText={setBodyText} onBlur={doSave} lastResult={lastResult} />}
-        {tab === "homework" && (
-          <HomeworkTab lesson={lesson} text={homeworkText} setText={setHomeworkText} offset={homeworkOffset} setOffset={setHomeworkOffset} dirty={dirty} onBlur={doSave} />
-        )}
-        {tab === "files" && <FilesTab lesson={lesson} />}
+      <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-6 py-5">
+        <PlanSection bodyText={bodyText} setBodyText={setBodyText} onBlur={doSave} lastResult={lastResult} />
+        <HomeworkSection lesson={lesson} text={homeworkText} setText={setHomeworkText} offset={homeworkOffset} setOffset={setHomeworkOffset} dirty={dirty} onBlur={doSave} />
+        <FilesSection lesson={lesson} />
       </div>
     </>
   );
 }
 
-function PlanningTab({
+function SectionHeading({ icon, children, actions }: { icon: ReactNode; children: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <span className="text-faint">{icon}</span>
+      <h3 className="text-[13px] font-semibold">{children}</h3>
+      {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+    </div>
+  );
+}
+
+function PlanSection({
   bodyText,
   setBodyText,
   onBlur,
@@ -208,88 +195,35 @@ function PlanningTab({
   onBlur: () => void;
   lastResult: LessonSaveResult | null;
 }) {
-  const [mode, setMode] = useState<"write" | "preview" | "split">("write");
-  const ta = useRef<HTMLTextAreaElement>(null);
-
-  /** Wraps the selection or prefixes the current line — minimal Markdown toolbar. */
-  const format = (kind: "h2" | "bold" | "list" | "check" | "link") => {
-    const el = ta.current;
-    if (!el) return;
-    const { selectionStart: s, selectionEnd: e } = el;
-    const sel = bodyText.slice(s, e);
-    const lineStart = bodyText.lastIndexOf("\n", s - 1) + 1;
-    let next = bodyText;
-    let caret = e;
-    const prefix = { h2: "## ", list: "- ", check: "- [ ] " } as const;
-    if (kind === "bold" || kind === "link") {
-      const wrapped = kind === "bold" ? `**${sel || "bold"}**` : `[${sel || "link"}](https://)`;
-      next = bodyText.slice(0, s) + wrapped + bodyText.slice(e);
-      caret = s + wrapped.length;
-    } else {
-      next = bodyText.slice(0, lineStart) + prefix[kind] + bodyText.slice(lineStart);
-      caret = e + prefix[kind].length;
-    }
-    setBodyText(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(caret, caret);
-    });
-  };
-
-  const preview = (
-    <div className="prose-lesson min-h-[320px] rounded-md border border-line bg-raised p-3">
-      {bodyText.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{bodyText}</ReactMarkdown> : <span className="text-faint">Nothing to preview yet.</span>}
-    </div>
-  );
+  const editor = useRef<MarkdownEditorHandle>(null);
+  const tools: { kind: MarkdownFormat; label: string; icon: ReactNode }[] = [
+    { kind: "h2", label: "Heading", icon: <Heading2 className="size-4" /> },
+    { kind: "bold", label: "Bold", icon: <Bold className="size-4" /> },
+    { kind: "italic", label: "Italic", icon: <Italic className="size-4" /> },
+    { kind: "list", label: "Bullet list", icon: <List className="size-4" /> },
+    { kind: "check", label: "Checklist item", icon: <CheckSquare className="size-4" /> },
+    { kind: "link", label: "Link", icon: <Link2 className="size-4" /> },
+  ];
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-0.5 rounded-md border border-line bg-raised p-1">
-        <IconButton label="Heading" onClick={() => format("h2")} disabled={mode === "preview"}>
-          <Heading2 className="size-4" />
-        </IconButton>
-        <IconButton label="Bold" onClick={() => format("bold")} disabled={mode === "preview"}>
-          <Bold className="size-4" />
-        </IconButton>
-        <IconButton label="Bullet list" onClick={() => format("list")} disabled={mode === "preview"}>
-          <List className="size-4" />
-        </IconButton>
-        <IconButton label="Checklist item" onClick={() => format("check")} disabled={mode === "preview"}>
-          <CheckSquare className="size-4" />
-        </IconButton>
-        <IconButton label="Link" onClick={() => format("link")} disabled={mode === "preview"}>
-          <Link2 className="size-4" />
-        </IconButton>
-        <div className="ml-auto flex rounded-md bg-hover p-0.5 text-xs">
-          {(["write", "split", "preview"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m} className={cx("rounded px-2 py-0.5 capitalize", mode === m ? "bg-raised font-medium text-fg shadow-sm" : "text-muted")}>
-              {m}
-            </button>
-          ))}
-        </div>
+    <section>
+      <SectionHeading
+        icon={<FileText className="size-4" />}
+        actions={tools.map((t) => (
+          <IconButton key={t.kind} label={t.label} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.current?.format(t.kind)}>
+            {t.icon}
+          </IconButton>
+        ))}
+      >
+        Plan
+      </SectionHeading>
+      <div className="rounded-lg border border-line bg-raised px-4 py-2 focus-within:border-line-strong" onClick={() => editor.current?.focus()}>
+        <MarkdownEditor ref={editor} value={bodyText} onChange={setBodyText} onBlur={onBlur} placeholder="Write the plan… (# heading, **bold**, - list, - [ ] to-do)" />
       </div>
-
-      <div className={cx(mode === "split" && "grid grid-cols-2 gap-2")}>
-        {mode !== "preview" && (
-          <textarea
-            ref={ta}
-            value={bodyText}
-            onChange={(e) => setBodyText(e.target.value)}
-            onBlur={onBlur}
-            placeholder="Plan this lesson in Markdown…"
-            aria-label="Lesson notes"
-            className="min-h-[320px] w-full resize-y rounded-md border border-line bg-raised p-3 font-mono text-[12.5px] leading-relaxed outline-none focus:border-line-strong"
-          />
-        )}
-        {mode !== "write" && preview}
-      </div>
-      <div className="flex justify-between text-[11px] text-faint">
-        <span>Markdown · Ctrl/⌘+S saves · autosaves after a pause</span>
-        <span className="tabular-nums">{bodyText.length} chars</span>
-      </div>
+      <div className="mt-1.5 text-[11px] text-faint">Markdown formats as you type · Ctrl/⌘+S saves · autosaves after a pause</div>
 
       {lastResult?.actionItems && lastResult.actionItems.length > 0 && (
-        <div className="rounded-md border border-line bg-raised p-3">
+        <div className="mt-3 rounded-lg border border-line bg-surface p-3">
           <div className="mb-2 flex items-center gap-1.5 text-xs font-medium">
             <Sparkles className="size-3.5 text-accent" /> Action items found · added to tasks
           </div>
@@ -303,11 +237,11 @@ function PlanningTab({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
-function HomeworkTab({
+function HomeworkSection({
   lesson,
   text,
   setText,
@@ -326,157 +260,216 @@ function HomeworkTab({
 }) {
   const action = useLessonAction(lesson.id);
   const toast = useToast();
+  const [adding, setAdding] = useState(false);
+  const area = useRef<HTMLTextAreaElement>(null);
   const release = useMemo(() => {
     if (!lesson.slot || offset == null) return null;
     const d = new Date(lesson.slot.startTime);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset);
   }, [lesson.slot, offset]);
+
+  const hasHomework = !!text.trim() || adding;
+  if (!hasHomework)
+    return (
+      <section>
+        <SectionHeading icon={<BookOpen className="size-4" />}>Homework</SectionHeading>
+        <button
+          onClick={() => {
+            setAdding(true);
+            if (offset == null) setOffset(7);
+            requestAnimationFrame(() => area.current?.focus());
+          }}
+          className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 py-2.5 text-[13px] text-muted hover:bg-hover hover:text-fg"
+        >
+          <Plus className="size-4" /> Add homework
+        </button>
+      </section>
+    );
+
   const today = new Date(new Date().toDateString());
   const status = lesson.homeworkPostedAt
-    ? { label: `Posted ${fmtDate(lesson.homeworkPostedAt)} · Manual`, cls: "text-success" }
-    : !text.trim() || !release
-      ? { label: "No reminder set", cls: "text-faint" }
+    ? { label: `Posted ${fmtDate(lesson.homeworkPostedAt)}`, cls: "text-success" }
+    : !release
+      ? { label: "No reminder", cls: "text-faint" }
       : release <= today
         ? { label: "Due to post", cls: "text-warning font-medium" }
-        : { label: `Not yet due · releases ${relativeDays(release.toISOString())}`, cls: "text-muted" };
+        : { label: `Releases ${relativeDays(release.toISOString())}`, cls: "text-muted" };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label htmlFor="hw" className="mb-1.5 block text-[11px] font-medium tracking-wide text-faint uppercase">
-          Homework
-        </label>
+    <section>
+      <SectionHeading
+        icon={<BookOpen className="size-4" />}
+        actions={
+          <IconButton
+            label="Remove homework"
+            onClick={() => {
+              setText("");
+              setOffset(null);
+              setAdding(false);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+          </IconButton>
+        }
+      >
+        Homework
+      </SectionHeading>
+      <div className="rounded-lg border border-line bg-raised focus-within:border-line-strong">
         <textarea
-          id="hw"
+          ref={area}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onBlur={onBlur}
           placeholder="e.g. Read p. 42–45 and answer questions 1–6."
-          className="min-h-[140px] w-full resize-y rounded-md border border-line bg-raised p-3 text-[13px] outline-none focus:border-line-strong"
+          aria-label="Homework"
+          className="block min-h-[84px] w-full resize-y rounded-t-lg bg-transparent px-4 py-3 text-[14px] outline-none placeholder:text-faint"
         />
-      </div>
-
-      <div className="rounded-md border border-line bg-raised p-3">
-        <div className="flex flex-wrap items-center gap-2 text-[13px]">
-          Remind me
-          <input
-            type="number"
-            min={0}
-            max={60}
-            value={offset ?? ""}
-            placeholder="–"
-            onChange={(e) => setOffset(e.target.value === "" ? null : Math.max(0, Math.min(60, Number(e.target.value))))}
-            onBlur={onBlur}
-            aria-label="Days before lesson"
-            className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-center font-mono outline-none focus:border-line-strong"
-          />
-          days before the lesson
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line px-4 py-2.5 text-[13px]">
+          <span className="text-muted">Remind me</span>
+          <div className="flex gap-1">
+            {[1, 3, 7, 14].map((n) => (
+              <button
+                key={n}
+                onClick={() => setOffset(n)}
+                className={cx("h-6 rounded-full border px-2 text-xs", offset === n ? "border-accent/50 bg-accent-soft font-medium" : "border-line text-muted hover:border-line-strong")}
+              >
+                {n}d
+              </button>
+            ))}
+            <input
+              type="number"
+              min={0}
+              max={60}
+              value={offset ?? ""}
+              placeholder="–"
+              onChange={(e) => setOffset(e.target.value === "" ? null : Math.max(0, Math.min(60, Number(e.target.value))))}
+              onBlur={onBlur}
+              aria-label="Days before lesson"
+              className="h-6 w-12 rounded-full border border-line bg-surface px-2 text-center text-xs outline-none focus:border-line-strong"
+            />
+          </div>
+          <span className="text-muted">before the lesson</span>
+          <span className="ml-auto text-xs text-muted">{release ? <>Release {fmtDay(release)}</> : lesson.slot ? "" : "No slot to schedule from"}</span>
         </div>
-        <div className="mt-2 flex gap-1.5">
-          {[1, 3, 7, 14].map((n) => (
-            <button key={n} onClick={() => setOffset(n)} className={cx("h-6 rounded-full border px-2 text-xs", offset === n ? "border-accent/50 bg-accent-soft" : "border-line text-muted hover:border-line-strong")}>
-              {n}d
-            </button>
-          ))}
-          {offset != null && (
-            <button onClick={() => setOffset(null)} className="h-6 px-2 text-xs text-faint hover:text-fg">
-              Clear
-            </button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className={cx("text-xs", status.cls)}>{status.label}</span>
+        <div className="ml-auto flex gap-2">
+          {lesson.homeworkPostedAt ? (
+            <Button size="sm" icon={<Undo2 className="size-3.5" />} onClick={() => action.mutate({ kind: "unpost" })} loading={action.isPending}>
+              Mark as not posted
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<CheckSquare className="size-3.5" />}
+              disabled={!text.trim() || dirty}
+              loading={action.isPending}
+              onClick={() => action.mutate({ kind: "post" }, { onSuccess: () => toast({ kind: "success", text: "Homework marked as posted" }), onError: (e) => toast({ kind: "error", text: e.message }) })}
+              title={dirty ? "Saving changes first…" : undefined}
+            >
+              Mark posted
+            </Button>
           )}
-        </div>
-        <div className="mt-3 text-xs text-muted">
-          {release ? <>Release on <span className="font-medium text-fg">{fmtDay(release)}</span></> : lesson.slot ? "Set a number of days to schedule a reminder." : "This lesson has no calendar slot, so it can't be scheduled."}
-        </div>
-        <div className={cx("mt-1 text-xs", status.cls)}>{status.label}</div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {lesson.homeworkPostedAt ? (
-          <Button icon={<Undo2 className="size-3.5" />} onClick={() => action.mutate({ kind: "unpost" })} loading={action.isPending}>
-            Mark as not posted
+          <Button size="sm" icon={<Send className="size-3.5" />} disabled title="Posting to Lectio / Google Classroom is coming later">
+            Post to LMS
           </Button>
-        ) : (
-          <Button
-            variant="primary"
-            icon={<CheckSquare className="size-3.5" />}
-            disabled={!text.trim() || dirty}
-            loading={action.isPending}
-            onClick={() => action.mutate({ kind: "post" }, { onSuccess: () => toast({ kind: "success", text: "Homework marked as posted" }), onError: (e) => toast({ kind: "error", text: e.message }) })}
-            title={dirty ? "Saving changes first…" : undefined}
-          >
-            Mark posted
-          </Button>
-        )}
-        <Button icon={<Send className="size-3.5" />} disabled title="Lectio / Google Classroom posting is coming in V2">
-          Post to LMS
-        </Button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-function FilesTab({ lesson }: { lesson: LessonDTO }) {
-  const { data: files, isLoading } = useLessonFiles(lesson.id, true);
+function FilesSection({ lesson }: { lesson: LessonDTO }) {
+  const { data: files } = useLessonFiles(lesson.id, true);
   const { data: settings } = useSettings();
   const action = useLessonAction(lesson.id);
+  const upload = useUploadFiles(lesson.id);
   const toast = useToast();
+  const picker = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
   const opener = settings?.platform === "darwin" ? "Finder" : settings?.platform === "win32" ? "File Explorer" : "file manager";
   const path = files?.folderPath ?? lesson.folderPath;
+  const list = files?.files ?? [];
+
+  const send = (picked: FileList | File[] | null) => {
+    const arr = picked ? Array.from(picked) : [];
+    if (!arr.length) return;
+    upload.mutate(arr, {
+      onSuccess: (names) => toast({ kind: "success", text: `Added ${names.length === 1 ? names[0] : `${names.length} files`} to the lesson folder` }),
+      onError: (e) => toast({ kind: "error", text: e.message }),
+    });
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-md border border-line bg-raised p-3">
-        <div className="mb-1 text-[11px] font-medium tracking-wide text-faint uppercase">Lesson folder</div>
-        {path ? (
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate font-mono text-xs text-muted" title={path}>
-              {path}
-            </code>
-            <IconButton label="Copy path" onClick={() => navigator.clipboard.writeText(path).then(() => toast({ kind: "success", text: "Path copied" }))}>
-              <Copy className="size-3.5" />
-            </IconButton>
-          </div>
-        ) : (
-          <div className="text-xs text-faint">No folder yet. Create one to keep worksheets, slides and lab sheets for this lesson.</div>
-        )}
-        <div className="mt-3 flex gap-2">
-          <Button
-            variant="primary"
-            icon={<FolderOpen className="size-3.5" />}
-            loading={action.isPending && action.variables?.kind === "open"}
-            onClick={() => action.mutate({ kind: "open" }, { onError: (e) => toast({ kind: "error", text: e.message }) })}
-          >
-            Open in {opener}
-          </Button>
-          {!files?.exists && (
-            <Button icon={<FolderPlus className="size-3.5" />} loading={action.isPending && action.variables?.kind === "folder"} onClick={() => action.mutate({ kind: "folder" })}>
-              Create folder
+    <section
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        send(e.dataTransfer.files);
+      }}
+    >
+      <SectionHeading
+        icon={<Paperclip className="size-4" />}
+        actions={
+          <>
+            <Button size="sm" variant="ghost" icon={<Upload className="size-3.5" />} loading={upload.isPending} onClick={() => picker.current?.click()}>
+              Upload
             </Button>
-          )}
-        </div>
-      </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<FolderOpen className="size-3.5" />}
+              loading={action.isPending && action.variables?.kind === "open"}
+              onClick={() => action.mutate({ kind: "open" }, { onError: (e) => toast({ kind: "error", text: e.message }) })}
+            >
+              Open in {opener}
+            </Button>
+          </>
+        }
+      >
+        Files
+      </SectionHeading>
+      <input ref={picker} type="file" multiple hidden onChange={(e) => (send(e.target.files), (e.target.value = ""))} />
 
-      <div>
-        <div className="mb-1.5 text-[11px] font-medium tracking-wide text-faint uppercase">Files</div>
-        {isLoading ? (
-          <Skeleton className="h-24" />
-        ) : !files?.files.length ? (
-          <Empty icon={<Folder className="size-6" />} title="No files yet">
-            Drop worksheets, slides and lab sheets into the folder. They'll show up here.
-          </Empty>
-        ) : (
-          <ul className="divide-y divide-line rounded-md border border-line bg-raised">
-            {files.files.map((f) => (
-              <li key={f.name} className="flex items-center gap-2 px-3 py-2 text-[13px]">
+      <div className={cx("rounded-lg border transition-colors", over ? "border-accent bg-accent-soft" : list.length ? "border-line bg-raised" : "border-dashed border-line-strong")}>
+        {list.length > 0 && (
+          <ul className="divide-y divide-line">
+            {list.map((f) => (
+              <li key={f.name} className="flex items-center gap-2 px-4 py-2 text-[13px]">
                 {f.isDirectory ? <Folder className="size-4 text-faint" /> : <File className="size-4 text-faint" />}
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
                 {!f.isDirectory && <span className="text-xs text-faint tabular-nums">{fmtBytes(f.size)}</span>}
-                <span className="w-16 text-right text-xs text-faint">{fmtDate(f.modifiedAt)}</span>
+                <span className="w-14 text-right text-xs text-faint">{fmtDate(f.modifiedAt)}</span>
               </li>
             ))}
           </ul>
         )}
+        <button onClick={() => picker.current?.click()} className={cx("flex w-full items-center justify-center gap-2 px-4 text-[13px] text-muted hover:text-fg", list.length ? "border-t border-line py-2.5" : "py-6")}>
+          <Upload className="size-4" />
+          {upload.isPending ? "Uploading…" : over ? "Drop to add to this lesson" : "Drop files here or click to upload"}
+        </button>
       </div>
-    </div>
+      {path && (
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-faint">
+          <span className="min-w-0 truncate font-mono" title={path}>
+            {path}
+          </span>
+          <button className="shrink-0 rounded p-0.5 hover:bg-hover hover:text-fg" aria-label="Copy folder path" onClick={() => navigator.clipboard.writeText(path).then(() => toast({ kind: "success", text: "Path copied" }))}>
+            <Copy className="size-3" />
+          </button>
+        </div>
+      )}
+      {!path && <div className="mt-1.5 text-[11px] text-faint">The lesson folder is created when you add the first file.</div>}
+    </section>
   );
 }

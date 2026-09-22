@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { body, HttpError, ownedLesson } from "../http";
@@ -20,24 +20,26 @@ async function lessonDTO(id: string, storage?: StorageService) {
   return storage ? (await withFiles([dto], storage))[0] : dto;
 }
 
-/** Lessons whose slot falls on a given local date — backs the dashboard day slide-over. */
+/**
+ * Lessons whose slot falls in a local date range, across all subjects, in
+ * time order. Backs the board's day view and the dashboard day slide-over.
+ * Accepts ?date=YYYY-MM-DD or ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive).
+ */
 lessonsRouter.get("/", async (req, res) => {
-  const { date } = z.object({ date: z.iso.date() }).parse(req.query);
-  const start = new Date(`${date}T00:00:00`);
-  const end = new Date(start.getTime() + DAY);
+  const q = z.object({ date: z.iso.date().optional(), from: z.iso.date().optional(), to: z.iso.date().optional() }).parse(req.query);
+  const fromDay = q.date ?? q.from;
+  const toDay = q.date ?? q.to ?? q.from;
+  if (!fromDay || !toDay) throw new HttpError(400, "Pass ?date= or ?from=&to=");
+  const start = new Date(`${fromDay}T00:00:00`);
+  const end = new Date(new Date(`${toDay}T00:00:00`).getTime() + DAY);
+  if (end.getTime() - start.getTime() > 62 * DAY) throw new HttpError(400, "Range too large (max 62 days)");
   const lessons = await prisma.lesson.findMany({
     where: { subject: { userId: req.ctx.userId }, calendarEvents: { some: { startTime: { gte: start, lt: end } } } },
     include: { ...lessonInclude, subject: true },
   });
-  const out = await Promise.all(
-    lessons.map(async (l) => ({
-      ...toLessonDTO(l),
-      subjectName: l.subject.name,
-      subjectColor: l.subject.color,
-      files: l.folderPath ? (await req.ctx.storage.list(l.folderPath).catch(() => [])).slice(0, 5) : [],
-    })),
-  );
-  out.sort((a, b) => (a.slot?.startTime ?? "").localeCompare(b.slot?.startTime ?? ""));
+  const dtos = await withFiles(lessons.map((l) => toLessonDTO(l)), req.ctx.storage);
+  const out = dtos.map((d, i) => ({ ...d, subjectName: lessons[i].subject.name, subjectColor: lessons[i].subject.color }));
+  out.sort((x, y) => (x.slot?.startTime ?? "").localeCompare(y.slot?.startTime ?? ""));
   res.json(out);
 });
 
@@ -95,7 +97,7 @@ async function syncActionItems(userId: string, lessonId: string, bodyText: strin
   const now = new Date();
   const lessonDate = lesson.calendarEvents[0]?.startTime ?? null;
   const { items, warning } = await extractActionItems(bodyText, {
-    lessonTitle: lesson.title || `Lesson ${lesson.sequenceOrder + 1}`,
+    lessonTitle: lesson.title || "Untitled lesson",
     subjectName: lesson.subject.name,
     lessonDate,
     today: now,
@@ -148,6 +150,16 @@ lessonsRouter.post("/:id/folder/open", async (req, res) => {
   res.json({ folderPath });
 });
 
+lessonsRouter.post("/:id/files", express.raw({ type: () => true, limit: "200mb" }), async (req, res) => {
+  const lesson = await ownedLesson(req, req.params.id);
+  const raw = req.header("x-file-name");
+  if (!raw) throw new HttpError(400, "Missing x-file-name header");
+  if (!Buffer.isBuffer(req.body)) throw new HttpError(400, "Empty upload");
+  const folderPath = await ensureLessonFolder(req.ctx.userId, lesson.id, req.ctx.storage);
+  const saved = await req.ctx.storage.writeFile(folderPath, decodeURIComponent(raw), req.body);
+  res.status(201).json({ folderPath, name: saved });
+});
+
 lessonsRouter.get("/:id/files", async (req, res) => {
   const lesson = await ownedLesson(req, req.params.id);
   const out: LessonFilesDTO = { folderPath: lesson.folderPath, exists: false, files: [] };
@@ -167,7 +179,7 @@ lessonsRouter.post("/:id/homework/post", async (req, res) => {
     subjectName: lesson.subject.name,
     group: slot?.group ?? null,
     lessonDate: slot?.startTime ?? new Date(),
-    title: lesson.title || `Lesson ${lesson.sequenceOrder + 1}`,
+    title: lesson.title || "Untitled lesson",
     body: lesson.homeworkText,
   });
   await prisma.lesson.update({ where: { id: lesson.id }, data: { homeworkPostedAt: result.postedAt } });

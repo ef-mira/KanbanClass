@@ -35,12 +35,12 @@ export function DaySlideOver({ date, onClose }: { date: string | null; onClose: 
               <div className="mt-2 space-y-1 text-xs text-muted">
                 <div className="flex items-center gap-1.5">
                   <Folder className="size-3.5 text-faint" />
-                  {l.folderPath ? (l.files.length ? `${l.files.length}${l.files.length === 5 ? "+" : ""} file(s)` : "Folder is empty") : "No folder"}
+                  {l.folderPath ? (l.files.total ? `${l.files.total} file${l.files.total > 1 ? "s" : ""}` : "Folder is empty") : "No folder"}
                 </div>
-                {l.files.slice(0, 3).map((f) => (
-                  <div key={f.name} className="flex items-center gap-1.5 pl-5 text-faint">
+                {l.files.names.map((n) => (
+                  <div key={n} className="flex items-center gap-1.5 pl-5 text-faint">
                     <File className="size-3" />
-                    <span className="truncate">{f.name}</span>
+                    <span className="truncate">{n}</span>
                   </div>
                 ))}
                 <div className="flex items-center gap-1.5">

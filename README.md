@@ -60,3 +60,14 @@ UI_DESIGN_PROMPT.md  Paste-ready brief for Claude Design (visual redesign)
 ### Safety
 
 The API binds to `127.0.0.1` and rejects cross-origin requests, so other websites can't drive it. Folder operations are confined to the configured teaching root, and file-manager launches never go through a shell.
+
+## Roadmap: accounts (later)
+
+Planned for when KanbanClass moves beyond one local user:
+
+- **Sign-in:** email + password or magic-link login, sessions, password reset. `contextMiddleware` resolves `userId` from the session instead of `LOCAL_USER_ID`.
+- **Email notifications:** homework due to post, unplanned lessons in the next 14 days, and new calendar entries to sort. Sent by a scheduled job.
+- **Hosted data:** Postgres instead of SQLite, S3 or Google Drive behind `StorageService`, and Lectio / Google Classroom behind `LMSAdapter`.
+- **Admin system:** manage schools, teachers and invites, see sync health, and handle support.
+
+The groundwork is already in place: every root model carries `userId`, and routes only read `req.ctx.userId`.

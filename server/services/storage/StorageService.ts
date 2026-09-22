@@ -18,6 +18,8 @@ export interface StorageService {
   list(locator: string): Promise<FileEntry[]>;
   /** Reveal the folder to the user (file manager locally, a browser URL in V2). */
   reveal(locator: string): Promise<void>;
+  /** Store a file in a folder. Never overwrites: clashes become "name (2).ext". Returns the stored name. */
+  writeFile(locator: string, fileName: string, data: Buffer): Promise<string>;
 }
 
 export function createStorageService(userId: string): StorageService {

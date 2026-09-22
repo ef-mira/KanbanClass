@@ -1,8 +1,8 @@
 import { LESSON_TEMPLATES } from "./templates";
 
-/** Untitled lessons are labelled by their current position, so the label follows reordering. */
+/** Label for lists outside the card (toasts, dashboard rows). Cards themselves omit missing titles. */
 export function lessonLabel(l: { title: string; sequenceOrder: number }): string {
-  return l.title.trim() || `Lesson ${l.sequenceOrder + 1}`;
+  return l.title.trim() || "Untitled lesson";
 }
 
 const TEMPLATE_LINES = new Set(
@@ -18,7 +18,7 @@ export function hasMeaningfulContent(body: string): boolean {
   return body.split("\n").some((raw) => {
     const line = raw.trim();
     if (!line || TEMPLATE_LINES.has(line)) return false;
-    if (/^#{1,6}\s/.test(line)) return false;
+    if (/^#{1,6}\s*$/.test(line)) return false; // bare "##"; a heading with your own words counts
     if (/^[-*+]\s*(\[[ xX]?\]\s*)?$/.test(line)) return false;
     if (/^[-*+]\s*(\[[ xX]?\]\s*)?[^:]{1,40}:\s*$/.test(line)) return false; // "- Goal:" left blank
     return true;

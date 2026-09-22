@@ -8,7 +8,7 @@
 
 KanbanClass is a desktop web app a Danish secondary-school teacher uses to plan a full school year. Their fixed timetable comes in from the school system as an iCal feed. Every timetable slot becomes a **lesson card** in a Kanban column per subject ("Fysik 10", "Matematik 10A", "10. klasse dansk"). The teacher writes the plan on each card, sets homework, and keeps files in a folder per lesson.
 
-The current build works but looks unpolished. **Redesign it to feel like ClickUp: clean, calm, dense but airy, obviously a professional tool.** Keep every feature described below. You are changing the look, spacing and hierarchy, not the product.
+The current build works and has the right structure, but it looks unpolished. **Redesign it to feel like ClickUp: clean, calm, dense but airy, obviously a professional tool.** Keep every feature described below. You are changing the look, spacing and hierarchy, not the product.
 
 ## Look and feel
 
@@ -24,39 +24,55 @@ The current build works but looks unpolished. **Redesign it to feel like ClickUp
 
 ### 1. Subjects board (most important)
 
-- A horizontally scrolling row of columns, 320px wide, one per subject. The last column is a renamable **special** column (default name "Additional") for prep that isn't tied to one subject, e.g. "Fagdag". Give it a subtle "Special" tag.
-- **Column header:** coloured subject pill + visible card count + hide (eye-off) button. Under it, a thin progress bar (completed / planned / remaining) with three small numbers.
-- Completed lessons are tucked into a "Show 22 completed lessons" row at the top of each column.
-- **Toolbar above the board:**
+- **Two view modes** in a segmented control at the top left:
+  - **By subject** (default): one 320px column per subject, horizontally scrolling. Columns can be **dragged to reorder** by a grip that appears on hover in the column header. The last column is usually a renamable **special** column (e.g. "Additional") for prep that isn't tied to one subject, like "Fagdag". It gets a subtle "Special" tag.
+  - **By day**: one column per weekday (Monday–Friday, plus Saturday or Sunday only when something is scheduled), with ‹ Today › week navigation and "Week 39". Cards sit in time order and carry a **subject tag**. The time range (`10:00–11:30`) replaces the date.
+- **Column header (By subject):** colored subject pill, visible card count, hide button. Under it, a thin progress bar (completed / planned / remaining) with three small numbers.
+- Completed lessons are tucked into a "Show 22 completed lessons" row at the top of each subject column.
+- **Toolbar:**
+  - View switch.
   - Status filter pills: Needs plan, Unplanned, Planned, Unscheduled.
-  - A "Next 14 days" pill.
-  - On the right: a **Collapse all / Expand all** segmented control, and a **Categories** button with a "3 new" badge when new calendar entries need sorting.
+  - "Next 14 days".
+  - On the right: **Collapse all / Expand all**, and **Categories** with a "3 new" badge.
 
-#### The lesson card: fixed height, three sections, expandable
+#### The lesson card
 
-This is the core of the product. The teacher needs to see a lesson's **content, homework and files at a glance**, so every card shows all three, even when empty.
+The teacher should see at a glance what's planned. **Clicking anywhere on the card opens the editor.** The drag handle and "Show more" are the only other controls.
 
-| Part | Collapsed (default) | Expanded |
-|---|---|---|
-| Header | Drag handle (on hover), `#23`, short date and time (`Wed 23/9 · 08:00`), room, status pill on the right | same |
-| Title | One line, 14px semibold. Untitled lessons show "Lesson 23" in muted grey | same |
-| **Plan** | Small label with icon. The first ~3 lines of the notes as plain text (headings stripped, bullets shown as •, checkboxes as ☐), clipped with an ellipsis. Italic grey "No plan yet" when empty | Full rendered Markdown |
-| **Homework** | Label + "Post Sun 20/9" (release date) on the right. One line of homework text, or "No homework" | Full text |
-| **Files** | Label + file count. One line: `worksheet.pdf, slides.pptx +2`, or "No files" | Full file list |
-| Footer | Open-task count on the left; "Show more ⌄" on the right | "Show less ⌃" |
+| Part | Rule |
+|---|---|
+| Header | Drag handle (on hover, By subject only). In By day, the subject tag. Short date and time (`Wed 23/9 · 08:00`), or the time range in By day. Room. Status pill on the right |
+| Title | Only if the teacher wrote one. **Never show a placeholder like "Lesson 12"**; untitled cards simply have no title row |
+| **Plan** | Always shown. Up to 3 lines of the notes as plain text (headings shown only when they're all there is, bullets as •, checkboxes as ☐), or italic grey "No plan yet" |
+| **Homework** | **Only when homework has been set.** One line plus "Post Sun 20/9" on the right |
+| **Files** | **Only when the lesson folder has files.** One line of names (`worksheet.pdf, slides.pptx +2`) plus a count |
+| Footer | Only when needed: open-task count, and **"Show more ⌄" only if something is actually cut off** (notes longer than 3 lines, homework or file names truncated, more files than shown). Never show a toggle that does nothing |
 
-- **All collapsed cards are exactly the same height**, whatever they contain, so columns line up into a clean grid. Show one card of each state: rich (all three sections filled), partly filled, and empty.
+- Expanded: full rendered Markdown, full homework, full file list.
+- Show the variety: a rich card, one with only a plan, an empty upcoming card, and a completed (faded) card.
 - Status pills: **Done** (green, check), **Planned** (accent outline), **Needs plan** (amber, alert icon; the one that should catch the eye), **Unplanned** (faint dashed), **Unscheduled** (grey).
-- No lesson-type icons and no template UI anywhere. Both are gone in this version.
+- No lesson-type icons and no template UI anywhere.
 - Drag state: lifted card, slight tilt, drop indicator line.
 
-### 2. Lesson drawer (opens from a card)
+### 2. Lesson editor (opens from a card)
 
-- A 560px slide-over from the right. The header has the subject pill, `#23`, status, an editable title, then date · time · room · group. Up/down chevrons step to the previous/next lesson, and there's a close button. A small "Saved 10:42" indicator.
-- **Tabs:** Planning · Homework · Local files.
-  - **Planning:** Markdown editor (toolbar: heading, bold, list, checklist, link; Write / Split / Preview). Below it, an "Action items found" strip of chips (auto-extracted to-dos like "Order copper sulfate").
-  - **Homework:** text area, then a sentence-style control "Remind me [7] days before the lesson" with 1d / 3d / 7d / 14d presets, then "Release on Mon 21 Sept" and a status line. Buttons: "Mark posted", and "Post to LMS" disabled with a "coming soon" tooltip.
-  - **Local files:** folder path with a copy button, a primary "Open in File Explorer" button, and a compact file list (icon, name, size, date) or an empty state.
+A 640px slide-over from the right, laid out as **one scrolling page with no tabs**, like a Notion page:
+
+- **Header:**
+  - Subject pill and status.
+  - "Saved 10:42" indicator, previous/next lesson chevrons, close.
+  - A large editable title (placeholder "Add a title").
+  - Date · time · room · group.
+- **Plan:** a section label with a small formatting toolbar on the right (heading, bold, italic, list, checklist, link). Below it, a **live Markdown editor in the style of Obsidian**: the teacher types Markdown and it's formatted as they type. `## Heading` becomes a large bold line with the `##` still visible but faded, `**bold**` turns bold with faded asterisks, and `- [ ]` becomes a real clickable checkbox. There's no separate preview pane. Under the editor, an "Action items found" strip of chips (auto-extracted to-dos like "Order copper sulfate").
+- **Homework:** if none is set, one quiet dashed "+ Add homework" row. Once added:
+  - A text box, with a footer row reading "Remind me [1d] [3d] [7d] [14d] [n] before the lesson · Release Mon 21/9".
+  - A status line ("Releases in 3 days", "Due to post", "Posted 22 Sept").
+  - Buttons: "Mark posted", and "Post to LMS" (disabled, "coming later" tooltip).
+  - A small remove (trash) button.
+- **Files:** section label with "Upload" and "Open in File Explorer" actions.
+  - The file list (icon, name, size, date).
+  - A **drop zone**: "Drop files here or click to upload", highlighted while dragging files over it. Uploading creates the lesson folder if needed.
+  - The folder path in small mono text with a copy button.
 
 ### 3. Categories modal (new: needs the most design help)
 
@@ -91,8 +107,8 @@ This opens automatically the first time a calendar import brings in new kinds of
 ## Deliverables
 
 1. **Design tokens** as CSS custom properties, light and dark, plus the Tailwind v4 `@theme inline` block that maps them. Keep these names so the app can swap them in directly: `--bg --surface --surface-raised --surface-hover --border --border-strong --text --text-muted --text-faint --accent --accent-soft --accent-fg --success --warning --danger --info --focus-ring --scrim --shadow-float`.
-2. **Mockups:** Subjects board (collapsed and expanded, light and dark), lesson drawer (all three tabs), Categories modal (including mid-drag), and Dashboard.
-3. **React 19 + Tailwind v4 components** in TypeScript, presentational only (props in, callbacks out), `lucide-react` icons, no other UI kit: `LessonCard`, `KanbanColumn`, `BoardToolbar`, `StatusBadge`, `SubjectPill`, `ProgressBar`, `CategoryColumn`, `SourceChip`, `LessonDrawer` shell with tabs, `MetricCard`, `WeekGrid`, `TaskRow`, `Button`, `ToggleChip`.
+2. **Mockups:** Subjects board By subject (collapsed and expanded, light and dark) and By day, lesson editor (empty lesson, and a full one with homework and files, mid file-drag), Categories modal (including mid-drag), and Dashboard.
+3. **React 19 + Tailwind v4 components** in TypeScript, presentational only (props in, callbacks out), `lucide-react` icons, no other UI kit: `LessonCard`, `KanbanColumn`, `DayColumn`, `BoardToolbar`, `StatusBadge`, `SubjectPill`, `ProgressBar`, `CategoryColumn`, `SourceChip`, `LessonEditor` page shell (Plan / Homework / Files sections, file drop zone), `MetricCard`, `WeekGrid`, `TaskRow`, `Button`, `ToggleChip`.
 
 Use these data shapes (they match the app), with realistic Danish sample data: 4 subjects plus one special column, a mix of every status, some cards with long notes, homework and 4+ files, and some empty.
 

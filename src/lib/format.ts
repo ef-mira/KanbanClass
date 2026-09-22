@@ -62,12 +62,15 @@ export function subjectTint(hex: string, dark: boolean) {
 
 /** Plain-text lines of a Markdown body for compact card previews. */
 export function mdPreview(body: string): string {
-  return body
-    .split("\n")
-    .filter((l) => !/^\s*#{1,6}\s/.test(l)) // headings are structure, not content
+  const isHeading = (l: string) => /^\s*#{1,6}\s/.test(l);
+  const lines = body.split("\n");
+  // Headings are structure, so skip them — unless they're all there is ("## hej").
+  const content = lines.some((l) => l.trim() && !isHeading(l)) ? lines.filter((l) => !isHeading(l)) : lines;
+  return content
     .map((l) =>
       l
         .trim()
+        .replace(/^#{1,6}\s+/, "")
         .replace(/^[-*+]\s+\[[xX]\]\s+/, "☑ ")
         .replace(/^[-*+]\s+\[\s?\]\s*/, "☐ ")
         .replace(/^[-*+]\s+/, "• ")

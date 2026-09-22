@@ -75,6 +75,24 @@ export class LocalDiskStorage implements StorageService {
     child.unref();
   }
 
+  async writeFile(locator: string, fileName: string, data: Buffer): Promise<string> {
+    await this.assertLocatorInside(locator);
+    await fs.mkdir(locator, { recursive: true });
+    // Keep only the base name and strip characters Windows/macOS reject.
+    const base = path.basename(fileName.replace(/\\/g, "/")).replace(/[<>:"|?*\u0000-\u001f]/g, "").trim() || "file";
+    const ext = path.extname(base);
+    const stem = base.slice(0, base.length - ext.length);
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? base : `${stem} (${n})${ext}`;
+      try {
+        await fs.writeFile(path.join(locator, name), data, { flag: "wx" });
+        return name;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST" || n > 999) throw err;
+      }
+    }
+  }
+
   private async assertLocatorInside(locator: string) {
     this.assertInside(await this.root(), path.resolve(locator));
   }

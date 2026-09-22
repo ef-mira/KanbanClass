@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
-import { body, ownedSubject } from "../http";
+import { body, HttpError, ownedSubject } from "../http";
 import type { SubjectDTO, SubjectKind } from "../../shared/types";
 import { lessonInclude, reorderLessons, subjectStats, toLessonDTO, withFiles } from "../services/lessons";
 
@@ -22,6 +22,16 @@ const SubjectPatch = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   isVisible: z.boolean().optional(),
+});
+
+/** Board column order (also used by the sidebar). */
+subjectsRouter.post("/order", async (req, res) => {
+  const { orderedIds } = body(z.object({ orderedIds: z.array(z.string()).max(200) }), req);
+  const owned = await prisma.subject.findMany({ where: { userId: req.ctx.userId }, select: { id: true } });
+  const known = new Set(owned.map((s) => s.id));
+  if (!orderedIds.every((id) => known.has(id))) throw new HttpError(400, "Unknown subject");
+  await prisma.$transaction(orderedIds.map((id, i) => prisma.subject.update({ where: { id }, data: { sortOrder: i } })));
+  res.json(await listSubjects(req.ctx.userId));
 });
 
 subjectsRouter.patch("/:id", async (req, res) => {

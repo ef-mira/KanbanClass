@@ -1,13 +1,21 @@
-import { useState, type ReactNode } from "react";
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronRight, Layers, Link2, ListTodo, Plus, Send, Sparkles, Trash2 } from "lucide-react";
-import type { SubjectDTO, TaskDTO } from "../../shared/types";
-import { useDashboard, useLessonAction, useSettings, useTaskMutations } from "../api";
+import { useMemo, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, Layers, Plus, Trash2 } from "lucide-react";
+import type { DashboardDTO, EventType, HomeworkQueueItem } from "../../shared/types";
+import { EVENT_TYPES } from "../../shared/types";
+import { useDashboard, useEvents, useLessonAction, useSettings, useTaskMutations, useUpdateSettings } from "../api";
 import { useNav } from "../nav";
-import { fmtDay, fmtTime, isoDate, relativeDays } from "../lib/format";
-import { lessonLabel } from "../../shared/planning";
-import { Button, cx, Empty, IconButton, ProgressBar, Skeleton, SubjectTag } from "../components/ui";
+import { addDays, isoDate, isoWeek, startOfWeek } from "../lib/format";
+import { Button } from "../ui/Button";
+import { MetricCard } from "../ui/MetricCard";
+import { ToggleChip } from "../ui/ToggleChip";
+import { TaskRow } from "../ui/TaskRow";
+import { WeekGrid } from "../ui/WeekGrid";
+import type { CalendarEvent, Task } from "../ui/types";
+import { cx, localIso, relativeDays, shortDate, shortDateTime, time } from "../ui/format";
+import { Skeleton } from "../components/ui";
 import { useToast } from "../components/toast";
-import { WeekGrid } from "./WeekGrid";
+
+const TYPE_LABEL: Record<EventType, string> = { lesson: "Lessons", pause: "Pauses", meeting: "Meetings", supervision: "Supervision", other: "Other" };
 
 export function Dashboard() {
   const { data, isLoading } = useDashboard();
@@ -17,254 +25,262 @@ export function Dashboard() {
   if (!isLoading && data && data.subjects.length === 0) {
     return (
       <div className="grid h-full place-items-center">
-        <Empty icon={<CalendarDays className="size-7" />} title="Connect your timetable to get started">
-          Add your Zenbi iCal feed, import an .ics file, or load a sample timetable.
-          <div className="mt-3">
+        <div className="max-w-sm text-center">
+          <h2 className="text-[15px] font-semibold">Connect your timetable to get started</h2>
+          <p className="mt-1 text-[13px] text-text-muted">Add your Zenbi iCal feed, import an .ics file, or load a sample timetable.</p>
+          <div className="mt-4">
             <Button variant="primary" onClick={() => go("settings")}>
               Open calendar settings
             </Button>
           </div>
-        </Empty>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto p-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pt-4 pb-5">
       {!!settings?.pendingSources && (
-        <div className="mb-4 flex items-center gap-3 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5">
-          <Layers className="size-4 text-accent" />
-          <span className="flex-1 text-[13px]">
-            {settings.pendingSources} new kind{settings.pendingSources > 1 ? "s" : ""} of calendar entries to sort into your columns.
+        <button
+          onClick={openCategories}
+          className="flex h-[38px] shrink-0 items-center gap-2.5 rounded-[9px] bg-accent-soft px-3.5 text-[13px] text-text transition-colors hover:brightness-[.97]"
+        >
+          <Layers size={15} className="text-accent" />
+          <span>
+            <b className="font-semibold">
+              {settings.pendingSources} new kind{settings.pendingSources > 1 ? "s" : ""} of calendar entries
+            </b>{" "}
+            to sort into your columns
           </span>
-          <Button size="sm" variant="primary" onClick={openCategories}>
-            Review
-          </Button>
-        </div>
+          <span className="ml-auto inline-flex items-center gap-0.5 font-semibold text-accent">
+            Review <ChevronRight size={14} />
+          </span>
+        </button>
       )}
-      <div className="flex flex-wrap gap-3">
-        {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-[118px] w-[260px]" />)}
-        {data?.subjects.map((s) => <MetricCard key={s.id} subject={s} onClick={() => go("board", { subjectId: s.id })} />)}
+
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-3">
+        {isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px]" />)}
+        {data?.subjects.map((s) => (
+          <button key={s.id} onClick={() => go("board", { subjectId: s.id })} className="text-left">
+            <MetricCard name={s.name} color={s.color} completed={s.stats.completed} planned={s.stats.planned} remaining={s.stats.remainingSlots} totalSlots={s.stats.totalSlots} />
+          </button>
+        ))}
       </div>
 
-      <div className="mt-5 grid grid-cols-12 gap-5">
-        <div className="col-span-12 xl:col-span-8">
-          <WeekGrid />
-        </div>
-        <div className="col-span-12 flex flex-col gap-3 xl:col-span-4">
-          {data && (
-            <>
-              <UnplannedSection items={data.unplanned} />
-              <HomeworkSection items={data.homework} />
-              <TaskSection tasks={data.tasks} />
-            </>
-          )}
-          {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-32" />)}
-        </div>
+      <div className="grid min-h-[520px] flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <WeekPanel />
+        <div className="flex flex-col gap-4">{data && <ActionPanels data={data} />}</div>
       </div>
     </div>
   );
 }
 
-function MetricCard({ subject: s, onClick }: { subject: SubjectDTO; onClick: () => void }) {
-  const st = s.stats;
-  const upcomingPlanned = Math.max(0, Math.min(st.planned, st.remainingSlots));
+function WeekPanel() {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const { data } = useEvents(weekStart, addDays(weekStart, 7));
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const { openLesson, openDay } = useNav();
+  const hidden = new Set<EventType>(settings?.hiddenEventTypes ?? ["pause"]);
+
+  const events: CalendarEvent[] = useMemo(
+    () =>
+      (data?.events ?? [])
+        .filter((e) => !hidden.has(e.eventType))
+        .map((e) => ({
+          id: e.id,
+          title: e.subjectName ?? e.summary,
+          start: localIso(e.startTime),
+          end: localIso(e.endTime),
+          room: e.room,
+          kind: e.eventType,
+          ignored: e.isIgnored,
+          subjectColor: e.subjectColor,
+        })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, settings?.hiddenEventTypes],
+  );
+
+  const toggleType = (t: EventType) => {
+    const next = new Set(hidden);
+    if (next.has(t)) next.delete(t);
+    else next.add(t);
+    updateSettings.mutate({ hiddenEventTypes: [...next] });
+  };
+
   return (
-    <button
-      onClick={onClick}
-      className="w-[260px] rounded-[10px] border border-line bg-raised p-3 text-left transition-colors hover:border-line-strong"
-      style={{ boxShadow: `inset 3px 0 0 ${s.color}` }}
-    >
-      <div className="truncate pl-1 text-[13px] font-semibold">{s.name}</div>
-      <div className="mt-2 grid grid-cols-3 gap-1 pl-1">
-        <Metric value={st.completed} label="Completed" />
-        <Metric value={st.planned} label="Planned" />
-        <Metric value={st.remainingSlots} label="Remaining" />
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-panel border border-border bg-surface-raised">
+      <header className="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
+        <h2 className="text-[14px] font-semibold">Week {isoWeek(weekStart)}</h2>
+        <span className="text-[12px] text-text-muted tabular-nums">
+          {shortDate(weekStart)}–{shortDate(addDays(weekStart, 4))}
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="icon" aria-label="Previous week" onClick={() => setWeekStart(addDays(weekStart, -7))} icon={<ChevronRight size={15} className="rotate-180" />} />
+          <Button size="sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>
+            Today
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Next week" onClick={() => setWeekStart(addDays(weekStart, 7))} icon={<ChevronRight size={15} />} />
+        </div>
+      </header>
+      <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+        {EVENT_TYPES.map((t) => (
+          <ToggleChip key={t} label={TYPE_LABEL[t]} active={!hidden.has(t)} onToggle={() => toggleType(t)} count={data?.counts[t] ?? 0} />
+        ))}
       </div>
-      <div className="mt-2.5 pl-1">
-        <ProgressBar
-          total={st.totalSlots}
-          segments={[
-            { value: st.completed, color: "var(--success)", label: `${st.completed} completed` },
-            { value: upcomingPlanned, color: s.color, label: `${upcomingPlanned} upcoming planned` },
-          ]}
-          label={`${st.totalSlots} slots this school year`}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <WeekGrid
+          weekStart={isoDate(weekStart)}
+          events={events}
+          now={localIso(new Date())}
+          onEventClick={(id) => {
+            const ev = data?.events.find((e) => e.id === id);
+            if (ev?.lessonId) openLesson(ev.lessonId);
+            else if (ev) openDay(isoDate(new Date(ev.startTime)));
+          }}
         />
       </div>
-    </button>
-  );
-}
-
-function Metric({ value, label }: { value: number; label: string }) {
-  return (
-    <div>
-      <div className="text-[28px] leading-none font-semibold tabular-nums">{value}</div>
-      <div className="mt-1 text-[11px] text-faint">{label}</div>
-    </div>
-  );
-}
-
-function Section({ title, count, tone, icon, children, defaultOpen = true, action }: { title: string; count: number; tone?: "warning"; icon: ReactNode; children: ReactNode; defaultOpen?: boolean; action?: ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <section className="rounded-[10px] border border-line bg-surface">
-      <header className="flex items-center gap-2 px-3 py-2.5">
-        <button onClick={() => setOpen((o) => !o)} className="flex flex-1 items-center gap-2 text-left" aria-expanded={open}>
-          {open ? <ChevronDown className="size-3.5 text-faint" /> : <ChevronRight className="size-3.5 text-faint" />}
-          <span className={cx(tone === "warning" && count > 0 ? "text-warning" : "text-muted")}>{icon}</span>
-          <h2 className="text-[13px] font-semibold">{title}</h2>
-          <span className={cx("rounded-full px-1.5 text-[11px] tabular-nums", tone === "warning" && count > 0 ? "bg-warning/15 text-warning" : "bg-hover text-muted")}>{count}</span>
-        </button>
-        {action}
-      </header>
-      {open && <div className="border-t border-line">{children}</div>}
     </section>
   );
 }
 
-function UnplannedSection({ items }: { items: import("../../shared/types").DashboardDTO["unplanned"] }) {
+function Panel({ title, meta, count, tone, children, defaultOpen = true }: { title: string; meta?: string; count: number; tone?: "warning"; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="flex flex-col overflow-hidden rounded-panel border border-border bg-surface-raised">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex h-10 shrink-0 items-center gap-2 px-3.5 text-left">
+        <ChevronDown size={14} className={cx("text-text-faint transition-transform", !open && "-rotate-90")} />
+        <h2 className="text-[13px] font-semibold">{title}</h2>
+        {meta && <span className="text-[12px] text-text-muted">· {meta}</span>}
+        <span
+          className={cx(
+            "ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+            tone === "warning" && count > 0 ? "bg-warning-soft text-warning" : "bg-surface-hover text-text-muted",
+          )}
+        >
+          {count}
+        </span>
+      </button>
+      {open && <div className="flex min-h-0 flex-col overflow-y-auto">{children}</div>}
+    </section>
+  );
+}
+
+const ROW = "flex items-center gap-2.5 border-t border-border px-3.5 py-2";
+
+function ActionPanels({ data }: { data: DashboardDTO }) {
   const { openLesson } = useNav();
+  const { create, update, remove } = useTaskMutations();
+  const toast = useToast();
+  const [newTask, setNewTask] = useState("");
+  const visibleUnplanned = data.unplanned.slice(0, 3);
+  const openTasks = data.tasks.filter((t) => !t.isCompleted).length;
+
+  const tasks: Task[] = data.tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    done: t.isCompleted,
+    due: t.dueDate ? shortDateTime(t.dueDate).split(" · ")[0] : null,
+    autoExtracted: t.isAutoGenerated,
+    lessonId: t.lessonId ?? "",
+    lessonTitle: t.lessonTitle ?? "",
+  }));
+
   return (
-    <Section title="Unplanned · next 14 days" count={items.length} tone="warning" icon={<AlertTriangle className="size-4" />}>
-      {items.length === 0 ? (
-        <div className="px-3 py-4 text-xs text-faint">Everything in the next two weeks has notes. Nice.</div>
-      ) : (
-        <ul className="max-h-[260px] divide-y divide-line overflow-y-auto">
-          {items.map((l) => (
-            <li key={l.id} className="flex items-center gap-2 px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <SubjectTag name={l.subjectName} color={l.subjectColor} />
-                  <span className="truncate text-[13px]">{lessonLabel(l)}</span>
-                </div>
-                <div className="mt-0.5 font-mono text-[11px] text-faint">
-                  {l.slot && `${fmtDay(l.slot.startTime)} ${fmtTime(l.slot.startTime)} · ${relativeDays(l.slot.startTime)}`}
-                </div>
+    <>
+      <Panel title="Unplanned" meta="next 14 days" count={data.unplanned.length} tone="warning">
+        {data.unplanned.length === 0 && <p className="border-t border-border px-3.5 py-3 text-[12px] text-text-muted">Everything in the next two weeks has notes.</p>}
+        {visibleUnplanned.map((l) => (
+          <div key={l.id} className={ROW}>
+            <span className="size-2 shrink-0 rounded-full" style={{ background: l.subjectColor }} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium">{l.title || l.subjectName}</div>
+              <div className="truncate text-[11px] text-text-muted tabular-nums">
+                {l.slot && `${shortDateTime(l.slot.startTime)} · ${relativeDays(l.slot.startTime)}`}
               </div>
-              <Button size="sm" onClick={() => openLesson(l.id)}>
-                Plan
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Section>
+            </div>
+            <Button size="sm" onClick={() => openLesson(l.id)}>
+              Plan
+            </Button>
+          </div>
+        ))}
+        {data.unplanned.length > visibleUnplanned.length && (
+          <div className="border-t border-border px-3.5 py-2 text-[12px] text-text-muted">{data.unplanned.length - visibleUnplanned.length} more</div>
+        )}
+      </Panel>
+
+      <Panel title="Homework to post" count={data.homework.filter((h) => new Date(h.releaseDate) <= new Date()).length}>
+        {data.homework.length === 0 && <p className="border-t border-border px-3.5 py-3 text-[12px] text-text-muted">No homework reminders due this week.</p>}
+        {data.homework.map((h) => (
+          <HomeworkRow key={h.lessonId} item={h} />
+        ))}
+      </Panel>
+
+      <Panel title="Tasks" count={openTasks}>
+        <form
+          className="flex items-center gap-2 border-t border-border px-3.5 py-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!newTask.trim()) return;
+            create.mutate(
+              { title: newTask.trim(), dueDate: isoDate(new Date()) },
+              { onSuccess: () => setNewTask(""), onError: (err) => toast({ kind: "error", text: err.message }) },
+            );
+          }}
+        >
+          <Plus size={14} className="text-text-faint" />
+          <input
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            placeholder="Add a task…"
+            aria-label="New task"
+            className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-text-faint"
+          />
+        </form>
+        {tasks.map((t) => (
+          <div key={t.id} className="group flex items-center border-t border-border pr-2">
+            <div className="min-w-0 flex-1">
+              <TaskRow task={t} onToggle={() => update.mutate({ id: t.id, isCompleted: !t.done })} onOpenLesson={(id) => id && openLesson(id)} />
+            </div>
+            <button
+              onClick={() => remove.mutate(t.id)}
+              aria-label={`Delete ${t.title}`}
+              className="shrink-0 rounded p-1 text-text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger focus-visible:opacity-100"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+      </Panel>
+    </>
   );
 }
 
-function HomeworkSection({ items }: { items: import("../../shared/types").HomeworkQueueItem[] }) {
-  const today = isoDate(new Date());
-  const due = items.filter((h) => isoDate(new Date(h.releaseDate)) <= today).length;
-  return (
-    <Section title="Homework to post" count={due} icon={<Send className="size-4" />}>
-      {items.length === 0 ? (
-        <div className="px-3 py-4 text-xs text-faint">No homework reminders due this week. Set them in a lesson's Homework tab.</div>
-      ) : (
-        <ul className="divide-y divide-line">
-          {items.map((h) => (
-            <HomeworkRow key={h.lessonId} item={h} isDue={isoDate(new Date(h.releaseDate)) <= today} />
-          ))}
-        </ul>
-      )}
-    </Section>
-  );
-}
-
-function HomeworkRow({ item: h, isDue }: { item: import("../../shared/types").HomeworkQueueItem; isDue: boolean }) {
+function HomeworkRow({ item: h }: { item: HomeworkQueueItem }) {
   const { openLesson } = useNav();
   const post = useLessonAction(h.lessonId);
   const toast = useToast();
+  const due = new Date(h.releaseDate) <= new Date();
   return (
-    <li className="flex items-center gap-2 px-3 py-2">
+    <div className={ROW}>
       <button className="min-w-0 flex-1 text-left" onClick={() => openLesson(h.lessonId)}>
-        <div className="flex items-center gap-1.5">
-          <SubjectTag name={h.subjectName} color={h.subjectColor} />
-          <span className="truncate text-[13px]">{h.lessonTitle}</span>
+        <div className="flex items-center gap-2">
+          <span className="size-2 shrink-0 rounded-full" style={{ background: h.subjectColor }} />
+          <span className="truncate text-[13px] font-medium">{h.lessonTitle}</span>
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-faint">{h.homeworkText}</div>
-        <div className={cx("mt-0.5 text-[11px]", isDue ? "font-medium text-warning" : "text-faint")}>
-          {isDue ? "Post now" : "Releases"} · {fmtDay(h.releaseDate)} · lesson {fmtDay(h.lessonDate)}
+        <div className="mt-0.5 truncate text-[12px] text-text-muted">{h.homeworkText}</div>
+        <div className={cx("mt-0.5 truncate text-[11px] font-medium tabular-nums", due ? "text-warning" : "text-text-muted")}>
+          {due ? "Due since" : "Releases"} {shortDate(h.releaseDate)} · lesson {shortDate(h.lessonDate)} {time(h.lessonDate)}
         </div>
       </button>
       <Button
+        variant="soft"
         size="sm"
-        variant={isDue ? "primary" : "secondary"}
-        loading={post.isPending}
-        onClick={() => post.mutate({ kind: "post" }, { onSuccess: () => toast({ kind: "success", text: "Marked as posted" }) })}
+        disabled={post.isPending}
+        onClick={() => post.mutate({ kind: "post" }, { onSuccess: () => toast({ kind: "success", text: "Marked as posted" }), onError: (e) => toast({ kind: "error", text: e.message }) })}
       >
         Mark posted
       </Button>
-    </li>
-  );
-}
-
-function TaskSection({ tasks }: { tasks: TaskDTO[] }) {
-  const { create, update, remove } = useTaskMutations();
-  const { openLesson } = useNav();
-  const toast = useToast();
-  const [title, setTitle] = useState("");
-  const [due, setDue] = useState(isoDate(new Date()));
-  const today = isoDate(new Date());
-  const open = tasks.filter((t) => !t.isCompleted).length;
-
-  const add = () => {
-    if (!title.trim()) return;
-    create.mutate({ title: title.trim(), dueDate: due }, { onSuccess: () => setTitle(""), onError: (e) => toast({ kind: "error", text: e.message }) });
-  };
-
-  return (
-    <Section title="Tasks" count={open} icon={<ListTodo className="size-4" />}>
-      <form
-        className="flex items-center gap-1.5 border-b border-line px-3 py-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          add();
-        }}
-      >
-        <Plus className="size-3.5 text-faint" />
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add a task…" aria-label="New task" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-faint" />
-        <input type="date" value={due} onChange={(e) => setDue(e.target.value)} aria-label="Due date" className="rounded border border-line bg-raised px-1 font-mono text-[11px] text-muted" />
-      </form>
-      {tasks.length === 0 ? (
-        <div className="px-3 py-4 text-xs text-faint">No open tasks. Action items like “Order copper sulfate” are pulled from your lesson notes automatically.</div>
-      ) : (
-        <ul className="max-h-[360px] divide-y divide-line overflow-y-auto">
-          {tasks.map((t) => {
-            const overdue = !t.isCompleted && isoDate(new Date(t.dueDate)) < today;
-            return (
-              <li key={t.id} className="group flex items-start gap-2 px-3 py-2">
-                <input
-                  type="checkbox"
-                  checked={t.isCompleted}
-                  onChange={(e) => update.mutate({ id: t.id, isCompleted: e.target.checked })}
-                  aria-label={`Complete ${t.title}`}
-                  className="mt-0.5 size-3.5 accent-[var(--accent)]"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className={cx("text-[13px]", t.isCompleted && "text-faint line-through")}>
-                    {t.isAutoGenerated && <Sparkles className="mr-1 inline size-3 text-accent" aria-label="Extracted from lesson notes" />}
-                    {t.title}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-[11px]">
-                    <span className={cx("font-mono", overdue ? "font-medium text-danger" : "text-faint")}>{overdue ? `Overdue · ${fmtDay(t.dueDate)}` : fmtDay(t.dueDate)}</span>
-                    {t.lessonId && t.subjectName && (
-                      <button onClick={() => openLesson(t.lessonId!)} className="inline-flex min-w-0 items-center gap-1 text-faint hover:text-fg">
-                        <Link2 className="size-3" />
-                        <span className="truncate">
-                          {t.subjectName} · {t.lessonTitle}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <IconButton label="Delete task" className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => remove.mutate(t.id)}>
-                  <Trash2 className="size-3.5" />
-                </IconButton>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Section>
+    </div>
   );
 }

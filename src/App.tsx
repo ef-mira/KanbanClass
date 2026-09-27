@@ -50,10 +50,10 @@ export function App() {
       <div className="flex h-full">
         <Sidebar />
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line px-5">
-            <h1 className="text-[15px] font-semibold">{TITLES[view]}</h1>
-            <span className="text-xs text-faint">
-              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          <header className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-5">
+            <h1 className="text-[14px] font-semibold tracking-[-0.01em]">{TITLES[view]}</h1>
+            <span className="text-[12px] text-text-muted">
+              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
             </span>
           </header>
           <div className="min-h-0 flex-1">

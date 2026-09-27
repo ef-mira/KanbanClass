@@ -6,12 +6,16 @@ A local-first annual lesson planner for teachers, inspired by ClickUp. It turns 
 
 - **Calendar sync.** Import from a Zenbi / iCal / webcal URL, an `.ics` file, or a built-in sample timetable. Each entry is classified as lesson, pause, meeting, supervision or other, and subject, group and room are extracted. This uses Claude Haiku 4.5 when `ANTHROPIC_API_KEY` is set, and Danish/English keyword heuristics otherwise. Identical entries are parsed once and cached. Dates and times always come straight from the iCal data, never from the model.
 - **Categories.** The first time an import brings in new kinds of entries, a Kanban-style modal opens. Drag each entry ("Fysik 10", "Fagdag Fysik", "Galla") into a board column, merge several into one, or drop it in *Not needed*. It stays on the calendar but never becomes lessons. Every teacher gets one renamable *special* column for prep that isn't tied to a subject. Planned lessons keep their dates when entries are merged.
-- **Subject Kanban.** One column per subject, with visibility toggles. Cards have a fixed height and show the top of the plan, the homework and the files. You can expand one card or all of them to see everything. Drag a card (mouse or keyboard) to change which slot a lesson occupies: the timetable stays fixed and the lesson content moves. Undo is available.
-- **Lesson drawer.** A Markdown editor with preview and autosave, a homework release trigger ("remind me N days before"), and a local folder with an "Open in File Explorer / Finder" button. Lesson templates exist in the API (`shared/templates.ts`) but are hidden in the V1 UI.
+- **Board.** Two views: **By subject** (one column per subject, draggable to reorder) and **By day** (one column per weekday, cards in time order with a subject tag). Clicking anywhere on a card opens it. Cards show the top of the plan, plus homework and files when set, and expand in place when something is cut off. Dragging a card (mouse or keyboard) changes which slot a lesson occupies: the timetable stays fixed and the lesson content moves. Undo is available.
+- **Lesson editor.** One page with Plan, Homework and Files. The plan is a live Markdown editor in the style of Obsidian (CodeMirror 6): formatting renders as you type, markers stay faint, and `- [ ]` is a real checkbox. Files upload by button or drag-and-drop, creating the lesson folder on first upload. Templates exist in the API (`shared/templates.ts`) but are hidden in the UI.
 - **Dashboard.** Per-subject counters (completed / planned / remaining slots), a weekly calendar grid with event-type filter chips, a day slide-over, and an action queue: lessons in the next 14 days with no notes, homework due to post, and tasks.
 - **Action-item extraction.** Saving notes pulls out teacher to-dos ("Order copper sulfate", unchecked `- [ ]` items) and adds them as auto-generated tasks.
 
-## Getting started
+## Running it
+
+Double-click **KanbanClass** on the desktop (a shortcut to `start-kanbanclass.cmd`). It builds the app if needed, starts it on http://localhost:3001 and opens the browser. Keep the black window open while you use the app; close it to stop.
+
+## Getting started (development)
 
 Requires Node 20+.
 
@@ -46,9 +50,14 @@ server/            Express 5 API (tsx), Prisma + SQLite
     storage/       StorageService interface + LocalDiskStorage
     lms/           LMSAdapter interface + manual adapter
 shared/            Types, templates and planning rules used by both sides
-src/               React 19 + Tailwind v4 + TanStack Query + dnd-kit
+src/
+  ui/              Design-system components from the redesign handoff (presentational)
+  views/           Screens that wire those components to the API
+  components/      App-specific pieces (sidebar, toasts, Markdown editor)
+                   React 19 + Tailwind v4 + TanStack Query + dnd-kit
 prisma/schema.prisma
 UI_DESIGN_PROMPT.md  Paste-ready brief for Claude Design (visual redesign)
+start-kanbanclass.cmd  Launcher used by the desktop shortcut
 ```
 
 ### V2 seams
@@ -56,6 +65,10 @@ UI_DESIGN_PROMPT.md  Paste-ready brief for Claude Design (visual redesign)
 - **`LMSAdapter`** (`server/services/lms`): `postHomework()` is manual in V1. Lectio or Google Classroom adapters plug in behind the same interface.
 - **`StorageService`** (`server/services/storage`): folder create, list and reveal. S3 or Google Drive implementations replace `LocalDiskStorage`.
 - **Multi-tenant.** Every root model carries `userId`, and routes only read `req.ctx.userId`. V1 resolves it to `LOCAL_USER_ID`; V2 resolves it from auth.
+
+### Design system
+
+The look comes from a Claude Design handoff. `src/index.css` holds its tokens (light and dark, mapped into Tailwind v4 via `@theme inline`), and `src/ui/` holds its components, adapted to the app's DTOs. Colours, spacing and type live in those two places, so restyling means touching them rather than the views.
 
 ### Safety
 

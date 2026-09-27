@@ -92,31 +92,33 @@ export function MarkdownEditor({
 }
 
 const liveStyle = HighlightStyle.define([
-  { tag: t.heading1, fontSize: "1.55em", fontWeight: "700", lineHeight: "1.3" },
-  { tag: t.heading2, fontSize: "1.3em", fontWeight: "700", lineHeight: "1.35" },
-  { tag: t.heading3, fontSize: "1.12em", fontWeight: "650" },
+  { tag: t.heading1, fontSize: "20px", fontWeight: "650", lineHeight: "1.3" },
+  { tag: t.heading2, fontSize: "18px", fontWeight: "650", lineHeight: "1.35" },
+  { tag: t.heading3, fontSize: "16px", fontWeight: "650" },
   { tag: [t.heading4, t.heading5, t.heading6], fontWeight: "650" },
-  { tag: t.strong, fontWeight: "700" },
+  { tag: t.strong, fontWeight: "650" },
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strikethrough, textDecoration: "line-through", color: "var(--text-faint)" },
   { tag: t.link, color: "var(--accent)", textDecoration: "underline" },
   { tag: t.url, color: "var(--text-faint)" },
   { tag: t.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface-hover)", borderRadius: "3px" },
   { tag: t.quote, fontStyle: "italic", color: "var(--text-muted)" },
-  // Syntax markers: #, **, -, >, `, [ ] — visible but faded, like Obsidian.
-  { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--text-faint)", fontWeight: "400" },
+  // Syntax markers (#, **, -, >, `) stay visible but faded, as in Obsidian.
+  { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--text-faint)", fontWeight: "500" },
 ]);
 
 const editorTheme = EditorView.theme({
   "&": { fontSize: "14px", backgroundColor: "transparent", color: "var(--text)" },
   "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "var(--font-sans)", lineHeight: "1.65" },
-  ".cm-content": { padding: "4px 0", caretColor: "var(--accent)", minHeight: "220px" },
-  ".cm-line": { padding: "0 2px" },
-  ".cm-placeholder": { color: "var(--text-faint)", fontStyle: "italic" },
+  ".cm-scroller": { fontFamily: "var(--font-sans)", lineHeight: "1.7" },
+  ".cm-content": { padding: "0", caretColor: "var(--accent)", minHeight: "96px" },
+  ".cm-line": { padding: "0" },
+  ".cm-placeholder": { color: "var(--text-faint)" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "var(--accent-soft) !important" },
-  ".cm-cursor": { borderLeftColor: "var(--accent)" },
-  ".cm-task": { verticalAlign: "-2px", margin: "0 4px 0 0", accentColor: "var(--accent)", cursor: "pointer" },
+  ".cm-cursor": { borderLeftColor: "var(--accent)", borderLeftWidth: "1.5px" },
+  ".cm-task": { width: "15px", height: "15px", verticalAlign: "-2px", margin: "0 6px 0 0", accentColor: "var(--accent)", borderRadius: "4px", cursor: "pointer" },
+  // A finished task line reads as done.
+  ".cm-line:has(.cm-task:checked)": { color: "var(--text-faint)", textDecoration: "line-through" },
 });
 
 class CheckboxWidget extends WidgetType {

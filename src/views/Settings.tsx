@@ -49,7 +49,7 @@ export function Settings() {
     <div className="h-full overflow-y-auto p-5">
       <div className="mx-auto max-w-2xl space-y-5">
         <Card title="Calendar feed" icon={<Link className="size-4" />}>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-text-muted">
             Paste your Zenbi export URL (<code className="font-mono">https://api.zenbi.dk/exportcalendar/own/?key=…</code>) or any iCal/webcal feed. The key stays in your local database.
           </p>
           <input
@@ -57,7 +57,7 @@ export function Settings() {
             value={form.icalUrl}
             onChange={(e) => setForm({ ...form, icalUrl: e.target.value })}
             placeholder="https://api.zenbi.dk/exportcalendar/own/?key=…"
-            className="mt-2 h-8 w-full rounded-md border border-line bg-raised px-2.5 font-mono text-xs outline-none focus:border-line-strong"
+            className="mt-2 h-8 w-full rounded-md border border-border bg-surface-raised px-2.5 font-mono text-xs outline-none focus:border-border-strong"
             aria-label="Calendar feed URL"
           />
           <div className="mt-3 flex flex-wrap gap-2">
@@ -95,32 +95,32 @@ export function Settings() {
               {!!settings?.pendingSources && <span className="rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-fg">{settings.pendingSources} new</span>}
             </Button>
           </div>
-          <div className="mt-3 text-[11px] text-faint">
+          <div className="mt-3 text-[11px] text-text-faint">
             Parsing: {settings?.aiEnabled ? <>AI ({settings.aiModel}) with cached results</> : <>keyword heuristics. Add <code className="font-mono">ANTHROPIC_API_KEY</code> to <code className="font-mono">.env</code> for AI parsing.</>}
           </div>
           {result && <SyncSummary r={result} at={settings?.lastSyncAt ?? null} />}
         </Card>
 
         <Card title="School year" icon={<CalendarPlus className="size-4" />}>
-          <p className="text-xs text-muted">Only events inside this range are imported and counted. Defaults to 1 Aug – 31 Jul.</p>
+          <p className="text-xs text-text-muted">Only events inside this range are imported and counted. Defaults to 1 Aug – 31 Jul.</p>
           <div className="mt-2 flex flex-wrap gap-3">
             <Field label="Starts">
-              <input type="date" value={form.schoolYearStart} onChange={(e) => setForm({ ...form, schoolYearStart: e.target.value })} className="h-8 rounded-md border border-line bg-raised px-2 font-mono text-xs" />
+              <input type="date" value={form.schoolYearStart} onChange={(e) => setForm({ ...form, schoolYearStart: e.target.value })} className="h-8 rounded-md border border-border bg-surface-raised px-2 font-mono text-xs" />
             </Field>
             <Field label="Ends">
-              <input type="date" value={form.schoolYearEnd} onChange={(e) => setForm({ ...form, schoolYearEnd: e.target.value })} className="h-8 rounded-md border border-line bg-raised px-2 font-mono text-xs" />
+              <input type="date" value={form.schoolYearEnd} onChange={(e) => setForm({ ...form, schoolYearEnd: e.target.value })} className="h-8 rounded-md border border-border bg-surface-raised px-2 font-mono text-xs" />
             </Field>
           </div>
         </Card>
 
         <Card title="Lesson folders" icon={<FileUp className="size-4" />}>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-text-muted">
             Folders are created as <code className="font-mono">&lt;root&gt;/&lt;year&gt;/&lt;Subject&gt;/Lesson_&lt;n&gt;/</code>.
           </p>
           <input
             value={form.teachingRoot}
             onChange={(e) => setForm({ ...form, teachingRoot: e.target.value })}
-            className="mt-2 h-8 w-full rounded-md border border-line bg-raised px-2.5 font-mono text-xs outline-none focus:border-line-strong"
+            className="mt-2 h-8 w-full rounded-md border border-border bg-surface-raised px-2.5 font-mono text-xs outline-none focus:border-border-strong"
             aria-label="Teaching folder root"
           />
         </Card>
@@ -142,9 +142,9 @@ export function Settings() {
 
 function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-[10px] border border-line bg-surface p-4">
+    <section className="rounded-[10px] border border-border bg-surface p-4">
       <h2 className="mb-1.5 flex items-center gap-2 text-[13px] font-semibold">
-        <span className="text-muted">{icon}</span>
+        <span className="text-text-muted">{icon}</span>
         {title}
       </h2>
       {children}
@@ -154,7 +154,7 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-[11px] font-medium tracking-wide text-faint uppercase">
+    <label className="flex flex-col gap-1 text-[11px] font-medium tracking-wide text-text-faint uppercase">
       {label}
       {children}
     </label>
@@ -172,12 +172,12 @@ function SyncSummary({ r, at }: { r: SyncResult; at: string | null }) {
     ["Parsed by heuristics", r.heuristicParsed],
   ];
   return (
-    <div className="mt-3 rounded-md border border-line bg-raised p-3">
-      <div className="mb-2 text-[11px] text-faint">Last sync{at && ` · ${new Date(at).toLocaleString("en-GB")}`}</div>
+    <div className="mt-3 rounded-md border border-border bg-surface-raised p-3">
+      <div className="mb-2 text-[11px] text-text-faint">Last sync{at && ` · ${new Date(at).toLocaleString("en-GB")}`}</div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
         {rows.map(([k, v]) => (
           <div key={k}>
-            <dt className="text-faint">{k}</dt>
+            <dt className="text-text-faint">{k}</dt>
             <dd className="font-medium tabular-nums">{v}</dd>
           </div>
         ))}

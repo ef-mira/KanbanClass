@@ -26,9 +26,9 @@ export function Button({
         "inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
         size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
         variant === "primary" && "bg-accent text-accent-fg hover:opacity-90",
-        variant === "secondary" && "border border-line bg-raised text-fg hover:bg-hover hover:border-line-strong",
-        variant === "ghost" && "text-muted hover:bg-hover hover:text-fg",
-        variant === "danger" && "border border-line bg-raised text-danger hover:bg-hover",
+        variant === "secondary" && "border border-border bg-surface-raised text-text hover:bg-surface-hover hover:border-border-strong",
+        variant === "ghost" && "text-text-muted hover:bg-surface-hover hover:text-text",
+        variant === "danger" && "border border-border bg-surface-raised text-danger hover:bg-surface-hover",
         className,
       )}
     >
@@ -44,7 +44,7 @@ export function IconButton({ label, children, className, ...rest }: ButtonHTMLAt
       {...rest}
       aria-label={label}
       title={label}
-      className={cx("inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-40", className)}
+      className={cx("inline-flex size-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-40", className)}
     >
       {children}
     </button>
@@ -72,12 +72,12 @@ export function ToggleChip({ pressed, onClick, children, count, icon }: { presse
       onClick={onClick}
       className={cx(
         "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150",
-        pressed ? "border-accent/50 bg-accent-soft text-fg" : "border-line text-faint hover:text-muted hover:border-line-strong",
+        pressed ? "border-accent/50 bg-accent-soft text-text" : "border-border text-text-faint hover:text-text-muted hover:border-border-strong",
       )}
     >
       {icon}
       {children}
-      {count !== undefined && <span className={cx("tabular-nums", pressed ? "text-muted" : "text-faint")}>{count}</span>}
+      {count !== undefined && <span className={cx("tabular-nums", pressed ? "text-text-muted" : "text-text-faint")}>{count}</span>}
     </button>
   );
 }
@@ -86,8 +86,8 @@ const STATUS: Record<LessonStatus, { label: string; icon: typeof Circle; cls: st
   done: { label: "Done", icon: CheckCircle2, cls: "text-success bg-success/10" },
   planned: { label: "Planned", icon: Circle, cls: "text-accent border border-accent/40" },
   "needs-plan": { label: "Needs plan", icon: AlertTriangle, cls: "text-warning bg-warning/12 font-semibold" },
-  unplanned: { label: "Unplanned", icon: CircleDashed, cls: "text-faint border border-dashed border-line-strong" },
-  "no-slot": { label: "Unscheduled", icon: CalendarOff, cls: "text-faint bg-hover" },
+  unplanned: { label: "Unplanned", icon: CircleDashed, cls: "text-text-faint border border-dashed border-border-strong" },
+  "no-slot": { label: "Unscheduled", icon: CalendarOff, cls: "text-text-faint bg-surface-hover" },
 };
 
 export function StatusBadge({ status, compact }: { status: LessonStatus; compact?: boolean }) {
@@ -105,7 +105,7 @@ export function ProgressBar({ segments, total, thin, label }: { segments: { valu
   return (
     <div>
       <div
-        className={cx("flex w-full overflow-hidden rounded-full bg-hover", thin ? "h-1" : "h-2")}
+        className={cx("flex w-full overflow-hidden rounded-full bg-surface-hover", thin ? "h-1" : "h-2")}
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={total}
@@ -116,7 +116,7 @@ export function ProgressBar({ segments, total, thin, label }: { segments: { valu
           <div key={i} title={s.label} className="h-full transition-[width] duration-300" style={{ width: `${total ? (s.value / total) * 100 : 0}%`, background: s.color }} />
         ))}
       </div>
-      {label && !thin && <div className="mt-1 text-[11px] text-faint">{label}</div>}
+      {label && !thin && <div className="mt-1 text-[11px] text-text-faint">{label}</div>}
     </div>
   );
 }
@@ -173,7 +173,7 @@ export function Drawer({
         tabIndex={-1}
         className={cx(
           "relative flex w-full flex-col bg-surface shadow-float outline-none",
-          placement === "center" ? "animate-fade h-full max-h-[860px] rounded-xl border border-line" : "animate-drawer h-full border-l border-line",
+          placement === "center" ? "animate-fade h-full max-h-[860px] rounded-xl border border-border" : "animate-drawer h-full border-l border-border",
         )}
         style={{ maxWidth: width }}
       >
@@ -194,13 +194,13 @@ export function DrawerClose({ onClose }: { onClose: () => void }) {
 export function Empty({ icon, title, children }: { icon?: ReactNode; title: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
-      {icon && <div className="text-faint">{icon}</div>}
-      <div className="text-[13px] font-medium text-muted">{title}</div>
-      {children && <div className="max-w-sm text-xs text-faint">{children}</div>}
+      {icon && <div className="text-text-faint">{icon}</div>}
+      <div className="text-[13px] font-medium text-text-muted">{title}</div>
+      {children && <div className="max-w-sm text-xs text-text-faint">{children}</div>}
     </div>
   );
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx("animate-pulse rounded-md bg-hover", className)} />;
+  return <div className={cx("animate-pulse rounded-md bg-surface-hover", className)} />;
 }

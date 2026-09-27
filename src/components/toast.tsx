@@ -34,7 +34,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => {
           const I = Icon[t.kind];
           return (
-            <div key={t.id} className="animate-fade pointer-events-auto flex items-start gap-2 rounded-lg border border-line bg-raised px-3 py-2.5 shadow-float">
+            <div key={t.id} className="animate-fade pointer-events-auto flex items-start gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2.5 shadow-float">
               <I className={`mt-px size-4 shrink-0 ${tone[t.kind]}`} />
               <div className="flex-1 text-[13px]">{t.text}</div>
               {t.action && (
@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   {t.action.label}
                 </button>
               )}
-              <button aria-label="Dismiss" className="text-faint hover:text-fg" onClick={() => dismiss(t.id)}>
+              <button aria-label="Dismiss" className="text-text-faint hover:text-text" onClick={() => dismiss(t.id)}>
                 <X className="size-3.5" />
               </button>
             </div>

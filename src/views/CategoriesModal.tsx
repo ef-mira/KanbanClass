@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { ArrowRightLeft, Ban, CalendarDays, GripVertical, Layers, Plus, Sparkles, Trash2 } from "lucide-react";
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent } from "@dnd-kit/core";
+import { Layers, Plus, X } from "lucide-react";
 import type { CategoriesDTO, CategorySourceDTO, SubjectKind } from "../../shared/types";
 import { useCategories, useSaveCategories } from "../api";
-import { fmtDate } from "../lib/format";
-import { Button, cx, Drawer, DrawerClose, Skeleton } from "../components/ui";
+import { Button } from "../ui/Button";
+import { CategoryColumn } from "../ui/CategoryColumn";
+import { SourceChip } from "../ui/SourceChip";
+import type { CalendarSource } from "../ui/types";
+import { cx } from "../ui/format";
+import { Skeleton } from "../components/ui";
 import { useToast } from "../components/toast";
 
 const NONE = "__not_needed__";
-const PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1", "#14b8a6", "#a855f7"];
-const TYPE_LABEL: Record<string, string> = { lesson: "Lesson", meeting: "Meeting", supervision: "Duty", other: "Event", pause: "Pause" };
+const PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1", "#14b8a6", "#64748b"];
 
 interface Column {
   id: string;
@@ -19,19 +22,45 @@ interface Column {
   plannedCount: number;
 }
 
+const toSource = (s: CategorySourceDTO): CalendarSource => ({
+  id: s.id,
+  label: s.label,
+  eventType: s.eventType === "pause" ? "other" : s.eventType,
+  eventCount: s.eventCount,
+  reviewed: s.reviewed,
+  nextDate: s.nextDate,
+});
+
 export function CategoriesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data } = useCategories(open);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
   return (
-    <Drawer open={open} onClose={onClose} placement="center" width={1280} label="Organize calendar categories">
-      {!data ? (
-        <div className="space-y-3 p-6">
-          <Skeleton className="h-6 w-72" />
-          <Skeleton className="h-96" />
-        </div>
-      ) : (
-        <Editor data={data} onClose={onClose} />
-      )}
-    </Drawer>
+    <div className="fixed inset-0 z-40 grid place-items-center p-6">
+      <div className="animate-fade absolute inset-0 bg-[var(--scrim)]" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Organize calendar categories"
+        className="animate-modal relative flex max-h-full w-full max-w-[1392px] flex-col overflow-hidden rounded-panel bg-surface-raised text-[13px] shadow-float"
+      >
+        {data ? (
+          <Editor data={data} onClose={onClose} />
+        ) : (
+          <div className="space-y-3 p-6">
+            <Skeleton className="h-8 w-80" />
+            <Skeleton className="h-96" />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -39,15 +68,13 @@ function Editor({ data, onClose }: { data: CategoriesDTO; onClose: () => void })
   const save = useSaveCategories();
   const toast = useToast();
   const [columns, setColumns] = useState<Column[]>(() => data.columns.map((c) => ({ ...c })));
-  const [assign, setAssign] = useState<Record<string, string>>(() =>
-    Object.fromEntries(data.sources.map((s) => [s.id, s.isIgnored || !s.subjectId ? NONE : s.subjectId])),
-  );
+  const [assign, setAssign] = useState<Record<string, string>>(() => Object.fromEntries(data.sources.map((s) => [s.id, s.isIgnored || !s.subjectId ? NONE : s.subjectId])));
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const [newSeq, setNewSeq] = useState(1);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   const newCount = data.sources.filter((s) => !s.reviewed).length;
 
-  // Re-seed if the server data changes underneath (e.g. a sync finished while open).
   useEffect(() => {
     setColumns(data.columns.map((c) => ({ ...c })));
     setAssign(Object.fromEntries(data.sources.map((s) => [s.id, s.isIgnored || !s.subjectId ? NONE : s.subjectId])));
@@ -59,14 +86,15 @@ function Editor({ data, onClose }: { data: CategoriesDTO; onClose: () => void })
       const col = assign[s.id] ?? NONE;
       m.set(col, [...(m.get(col) ?? []), s]);
     }
-    // Lessons first, most events first, so the big subjects lead each column.
     for (const list of m.values()) list.sort((a, b) => Number(b.eventType === "lesson") - Number(a.eventType === "lesson") || b.eventCount - a.eventCount);
     return m;
   }, [data.sources, assign]);
 
+  const slotsIn = (columnId: string) => (byColumn.get(columnId) ?? []).reduce((n, s) => n + s.eventCount, 0);
   const move = (sourceId: string, columnId: string) => setAssign((a) => ({ ...a, [sourceId]: columnId }));
   const onDragEnd = (e: DragEndEvent) => {
     setActiveId(null);
+    setOverId(null);
     if (e.over) move(String(e.active.id), String(e.over.id));
   };
 
@@ -77,7 +105,7 @@ function Editor({ data, onClose }: { data: CategoriesDTO; onClose: () => void })
     let name = base;
     for (let n = 2; columns.some((c) => c.name.toLowerCase() === name.toLowerCase()); n++) name = `${base} ${n}`;
     setColumns((cs) => [...cs, { id, name, color: kind === "special" ? "#64748b" : PALETTE[cs.length % PALETTE.length], kind, plannedCount: 0 }]);
-    requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-col-name="${id}"]`)?.select());
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-col="${id}"] input[aria-label="Column name"]`)?.select());
   };
 
   const removeColumn = (c: Column) => {
@@ -108,66 +136,97 @@ function Editor({ data, onClose }: { data: CategoriesDTO; onClose: () => void })
 
   const active = data.sources.find((s) => s.id === activeId);
   const moveTargets = [...columns.map((c) => ({ id: c.id, name: c.name })), { id: NONE, name: "Not needed" }];
+  const notNeeded = byColumn.get(NONE) ?? [];
 
   return (
     <>
-      <header className="flex items-start gap-3 border-b border-line px-6 py-4">
-        <div className="grid size-9 place-items-center rounded-lg bg-accent-soft text-accent">
-          <Layers className="size-5" />
+      <header className="flex items-start gap-3 border-b border-border px-6 py-5">
+        <div className="grid size-9 shrink-0 place-items-center rounded-[9px] bg-accent-soft text-accent">
+          <Layers size={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[16px] font-semibold">Organize calendar categories</h2>
-          <p className="mt-0.5 text-[13px] text-muted">
-            Drag each kind of calendar entry into the column it belongs to. Put several entries in one column to merge them (e.g. <em>Fagdag Fysik</em> into <em>Fysik 10</em>).
-            Entries in <strong>Not needed</strong> stay on your calendar but never become lesson cards.
-          </p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-[16px] font-[650]">Organize calendar categories</h2>
+            {newCount > 0 && <span className="inline-flex h-5 items-center rounded-full bg-accent px-2 text-[11px] font-semibold text-accent-fg">{newCount} new</span>}
+          </div>
+          <p className="mt-1 text-[13px] text-text-muted">Drag each kind of calendar entry into the column it belongs to. Entries in the same column become one lesson sequence.</p>
         </div>
-        {newCount > 0 && (
-          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
-            <Sparkles className="size-3.5" /> {newCount} new
-          </span>
-        )}
-        <DrawerClose onClose={onClose} />
+        <button onClick={onClose} aria-label="Close" className="grid size-[30px] shrink-0 place-items-center rounded-md text-text-muted hover:bg-surface-hover hover:text-text">
+          <X size={16} />
+        </button>
       </header>
 
-      <DndContext sensors={sensors} onDragStart={(e) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto bg-app p-4">
-          <div className="sticky left-0 z-10 flex shrink-0 bg-app pr-3 shadow-[8px_0_8px_-8px_rgb(0_0_0/0.12)]">
-            <NotNeededColumn sources={byColumn.get(NONE) ?? []} moveTargets={moveTargets} onMove={move} />
-          </div>
+      <DndContext
+        sensors={sensors}
+        onDragStart={(e) => setActiveId(String(e.active.id))}
+        onDragOver={(e: DragOverEvent) => setOverId(e.over ? String(e.over.id) : null)}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => (setActiveId(null), setOverId(null))}
+      >
+        <div className="flex min-h-0 flex-1 gap-2.5 overflow-x-auto bg-bg p-5">
+          <Droppable id={NONE} isOver={overId === NONE}>
+            {(isOver) => (
+              <CategoryColumn kind="not-needed" entryCount={notNeeded.length} isDropTarget={isOver}>
+                {notNeeded.map((s) => (
+                  <DraggableChip key={s.id} source={s} muted current={NONE} moveTargets={moveTargets} onMove={move} />
+                ))}
+              </CategoryColumn>
+            )}
+          </Droppable>
+
           {columns.map((c) => (
-            <CategoryColumn
-              key={c.id}
-              column={c}
-              sources={byColumn.get(c.id) ?? []}
-              moveTargets={moveTargets}
-              onMove={move}
-              onChange={(patch) => setColumns((cs) => cs.map((x) => (x.id === c.id ? { ...x, ...patch } : x)))}
-              onRemove={() => removeColumn(c)}
-            />
+            <Droppable key={c.id} id={c.id} isOver={overId === c.id}>
+              {(isOver) => (
+                <div data-col={c.id} className="flex">
+                  <CategoryColumn
+                    kind={c.kind}
+                    name={c.name}
+                    color={c.color}
+                    slotCount={slotsIn(c.id)}
+                    entryCount={(byColumn.get(c.id) ?? []).length}
+                    isDropTarget={isOver}
+                    onRename={(name) => setColumns((cs) => cs.map((x) => (x.id === c.id ? { ...x, name } : x)))}
+                    onKindChange={(kind) => setColumns((cs) => cs.map((x) => (x.id === c.id ? { ...x, kind } : x)))}
+                    onRemove={() => removeColumn(c)}
+                  >
+                    {(byColumn.get(c.id) ?? []).map((s) => (
+                      <DraggableChip key={s.id} source={s} current={c.id} moveTargets={moveTargets} onMove={move} />
+                    ))}
+                    {isOver && activeId && assign[activeId] !== c.id && (
+                      <div className="grid h-[52px] place-items-center rounded-card border-[1.5px] border-dashed border-accent text-[12px] font-medium text-accent">Drop to merge into {c.name}</div>
+                    )}
+                    <ColorInput value={c.color} onChange={(color) => setColumns((cs) => cs.map((x) => (x.id === c.id ? { ...x, color } : x)))} />
+                  </CategoryColumn>
+                </div>
+              )}
+            </Droppable>
           ))}
-          <div className="flex w-[200px] shrink-0 flex-col gap-2">
-            <button onClick={() => addColumn("subject")} className="flex h-10 items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 text-[13px] text-muted hover:bg-hover hover:text-fg">
-              <Plus className="size-4" /> Subject column
+
+          <div className="flex w-[150px] shrink-0 flex-col gap-2">
+            <button onClick={() => addColumn("subject")} className="flex h-[38px] items-center gap-1.5 rounded-[9px] border border-dashed border-border-strong px-3 text-text-muted hover:bg-surface hover:text-text">
+              <Plus size={14} /> Subject column
             </button>
-            <button onClick={() => addColumn("special")} className="flex h-10 items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 text-[13px] text-muted hover:bg-hover hover:text-fg">
-              <Plus className="size-4" /> Special column
+            <button onClick={() => addColumn("special")} className="flex h-[38px] items-center gap-1.5 rounded-[9px] border border-dashed border-border-strong px-3 text-text-muted hover:bg-surface hover:text-text">
+              <Plus size={14} /> Special column
             </button>
-            <p className="px-1 text-[11px] leading-snug text-faint">Special columns collect prep for events that aren't tied to one subject, like <em>Fagdag</em>. Empty subject columns are removed on save.</p>
+            <p className="px-1 text-[11px] leading-[1.45] text-text-faint">
+              Subject columns follow one class. Special columns collect prep that isn't tied to one subject, like Fagdag.
+            </p>
           </div>
         </div>
-        <DragOverlay dropAnimation={{ duration: 150, easing: "ease-out" }}>{active ? <SourceChip source={active} dragging /> : null}</DragOverlay>
+
+        <DragOverlay>{active ? <SourceChip source={toSource(active)} isDragging onMoveMenu={() => {}} /> : null}</DragOverlay>
       </DndContext>
 
-      <footer className="flex items-center gap-3 border-t border-line px-6 py-3">
-        <span className="text-xs text-faint">
-          {data.sources.length} calendar entries · {columns.length} columns · {(byColumn.get(NONE) ?? []).length} not needed
+      <footer className="flex items-center gap-3 border-t border-border py-3 pr-5 pl-6">
+        <span className="text-[12px] text-text-muted tabular-nums">
+          {data.sources.length} calendar entries · {columns.length} columns · {notNeeded.length} not needed
         </span>
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={doSave} loading={save.isPending}>
+          <Button variant="primary" onClick={doSave} disabled={save.isPending}>
             Save categories
           </Button>
         </div>
@@ -176,139 +235,60 @@ function Editor({ data, onClose }: { data: CategoriesDTO; onClose: () => void })
   );
 }
 
-function CategoryColumn({
-  column: c,
-  sources,
+/** Wraps a column so it can receive chips. */
+function Droppable({ id, isOver, children }: { id: string; isOver: boolean; children: (isOver: boolean) => React.ReactNode }) {
+  const { setNodeRef, isOver: over } = useDroppable({ id });
+  return <div ref={setNodeRef} className="flex">{children(isOver || over)}</div>;
+}
+
+function DraggableChip({
+  source,
+  muted,
+  current,
   moveTargets,
   onMove,
-  onChange,
-  onRemove,
 }: {
-  column: Column;
-  sources: CategorySourceDTO[];
+  source: CategorySourceDTO;
+  muted?: boolean;
+  current: string;
   moveTargets: { id: string; name: string }[];
   onMove: (sourceId: string, columnId: string) => void;
-  onChange: (patch: Partial<Column>) => void;
-  onRemove: () => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: c.id });
-  const events = sources.reduce((n, s) => n + s.eventCount, 0);
-  return (
-    <section
-      ref={setNodeRef}
-      className={cx("flex w-[224px] shrink-0 flex-col rounded-lg border bg-surface transition-colors", isOver ? "border-accent bg-accent-soft" : "border-line")}
-      aria-label={`${c.name} column`}
-    >
-      <div className="border-b border-line p-2.5">
-        <div className="flex items-center gap-2">
-          <label className="relative size-3.5 shrink-0 cursor-pointer rounded-full" style={{ background: c.color }} title="Change color">
-            <input type="color" value={c.color} onChange={(e) => onChange({ color: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" aria-label={`${c.name} color`} />
-          </label>
-          <input
-            data-col-name={c.id}
-            value={c.name}
-            onChange={(e) => onChange({ name: e.target.value })}
-            aria-label="Column name"
-            className="min-w-0 flex-1 rounded bg-transparent px-1 text-[13px] font-semibold outline-none hover:bg-hover focus:bg-hover"
-          />
-          <button onClick={onRemove} className="rounded p-1 text-faint hover:bg-hover hover:text-danger" aria-label={`Remove ${c.name} column`} title="Remove column">
-            <Trash2 className="size-3.5" />
-          </button>
-        </div>
-        <div className="mt-1.5 flex items-center gap-2 pl-5.5 text-[11px] text-faint">
-          <button
-            onClick={() => onChange({ kind: c.kind === "special" ? "subject" : "special" })}
-            className={cx("rounded-full px-1.5 py-px font-medium", c.kind === "special" ? "bg-hover text-muted" : "bg-accent-soft text-accent")}
-            title="Toggle between subject and special column"
-          >
-            {c.kind === "special" ? "Special" : "Subject"}
-          </button>
-          <span className="tabular-nums">{events} slots</span>
-        </div>
-      </div>
-      <div className="flex min-h-[80px] flex-1 flex-col gap-1.5 overflow-y-auto p-2">
-        {sources.map((s) => (
-          <DraggableSource key={s.id} source={s} moveTargets={moveTargets} current={c.id} onMove={onMove} />
-        ))}
-        {sources.length === 0 && <div className="grid flex-1 place-items-center rounded-md border border-dashed border-line py-6 text-[11px] text-faint">Drop entries here</div>}
-      </div>
-    </section>
-  );
-}
-
-function NotNeededColumn({ sources, moveTargets, onMove }: { sources: CategorySourceDTO[]; moveTargets: { id: string; name: string }[]; onMove: (sourceId: string, columnId: string) => void }) {
-  const { setNodeRef, isOver } = useDroppable({ id: NONE });
-  return (
-    <section ref={setNodeRef} className={cx("flex w-[224px] shrink-0 flex-col rounded-lg border border-dashed transition-colors", isOver ? "border-accent bg-accent-soft" : "border-line-strong bg-surface")} aria-label="Not needed">
-      <div className="border-b border-line p-2.5">
-        <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
-          <Ban className="size-3.5" /> Not needed
-        </div>
-        <div className="mt-1 text-[11px] text-faint">Shown on the calendar only</div>
-      </div>
-      <div className="flex min-h-[80px] flex-1 flex-col gap-1.5 overflow-y-auto p-2">
-        {sources.map((s) => (
-          <DraggableSource key={s.id} source={s} moveTargets={moveTargets} current={NONE} onMove={onMove} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function DraggableSource({ source, moveTargets, current, onMove }: { source: CategorySourceDTO; moveTargets: { id: string; name: string }[]; current: string; onMove: (sourceId: string, columnId: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: source.id });
   return (
-    <div ref={setNodeRef} className={cx(isDragging && "opacity-30")}>
+    <div ref={setNodeRef} className={cx("relative", isDragging && "opacity-30")}>
       <SourceChip
-        source={source}
-        handle={{ ...attributes, ...listeners }}
-        menu={
-          <label className="relative grid size-6 shrink-0 place-items-center rounded text-faint hover:bg-hover hover:text-fg" title="Move to…">
-            <ArrowRightLeft className="size-3.5" />
-            <select
-              value={current}
-              onChange={(e) => onMove(source.id, e.target.value)}
-              aria-label={`Move ${source.label} to column`}
-              className="absolute inset-0 cursor-pointer opacity-0"
-            >
-              {moveTargets.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        }
+        source={toSource(source)}
+        muted={muted}
+        dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLElement>}
+        onMoveMenu={() => {}}
       />
+      {/* Keyboard path: a native select layered over the move-to button. */}
+      <select
+        value={current}
+        onChange={(e) => onMove(source.id, e.target.value)}
+        aria-label={`Move ${source.label} to column`}
+        className="absolute top-1/2 right-1 size-[22px] -translate-y-1/2 cursor-pointer opacity-0"
+      >
+        {moveTargets.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
 
-function SourceChip({ source: s, dragging, handle, menu }: { source: CategorySourceDTO; dragging?: boolean; handle?: Record<string, unknown>; menu?: React.ReactNode }) {
+/** The colour dot in the column header opens this hidden input. */
+function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className={cx("flex items-center gap-1.5 rounded-md border bg-raised px-1.5 py-1.5", dragging ? "rotate-1 border-line-strong shadow-float" : "border-line hover:border-line-strong")}>
-      <button {...handle} className="cursor-grab touch-none text-faint active:cursor-grabbing" aria-label={`Drag ${s.label}`}>
-        <GripVertical className="size-3.5" />
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-[13px] font-medium">{s.label}</span>
-          {!s.reviewed && <span className="shrink-0 rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-fg">New</span>}
-        </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-faint">
-          <span>{TYPE_LABEL[s.eventType] ?? s.eventType}</span>
-          <span>·</span>
-          <span className="tabular-nums">
-            {s.eventCount} {s.eventCount === 1 ? "time" : "times"}
-          </span>
-          {s.eventCount <= 3 && s.nextDate && (
-            <span className="inline-flex items-center gap-0.5">
-              <CalendarDays className="size-3" /> {fmtDate(s.nextDate)}
-            </span>
-          )}
-        </div>
-      </div>
-      {menu}
-    </div>
+    <input
+      type="color"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="Column colour"
+      className="absolute top-3 left-2.5 size-3 cursor-pointer opacity-0"
+    />
   );
 }

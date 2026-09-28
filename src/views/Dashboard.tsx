@@ -113,7 +113,7 @@ function WeekPanel() {
       <header className="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
         <h2 className="text-[14px] font-semibold">Week {isoWeek(weekStart)}</h2>
         <span className="text-[12px] text-text-muted tabular-nums">
-          {shortDate(weekStart)}–{shortDate(addDays(weekStart, 4))}
+          {shortDate(weekStart)}–{shortDate(addDays(weekStart, (settings?.weekDays ?? 5) - 1))}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Previous week" onClick={() => setWeekStart(addDays(weekStart, -7))} icon={<ChevronRight size={15} className="rotate-180" />} />
@@ -131,6 +131,7 @@ function WeekPanel() {
       <div className="min-h-0 flex-1 overflow-auto">
         <WeekGrid
           weekStart={isoDate(weekStart)}
+          days={settings?.weekDays ?? 5}
           events={events}
           now={localIso(new Date())}
           onEventClick={(id) => {

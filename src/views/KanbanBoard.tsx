@@ -21,7 +21,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { EyeOff, ListTodo } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { LessonDTO, SubjectDTO } from "../../shared/types";
+import type { LessonDTO, SubjectDTO, WeekDays } from "../../shared/types";
 import { keys, useLessonRange, useLessons, useReorder, useReorderSubjects, useSettings, useSubjects, useUpdateSubject, type DayLesson } from "../api";
 import { useNav } from "../nav";
 import { addDays, isoDate, isoWeek, startOfWeek } from "../lib/format";
@@ -109,7 +109,7 @@ export function KanbanBoard() {
       {view === "subject" ? (
         <SubjectBoard filter={filter} cards={cards} />
       ) : (
-        <DayBoard weekStart={weekStart} filter={filter} cards={cards} />
+        <DayBoard weekStart={weekStart} weekDays={settings?.weekDays ?? 5} filter={filter} cards={cards} />
       )}
     </div>
   );
@@ -292,9 +292,9 @@ function SortableCard({ lesson, cards, onOpen }: { lesson: LessonDTO; cards: Car
   );
 }
 
-/* ---------------------------------------------------------------- By day */
+/* ---------------------------------------------------------------- By week (one column per day) */
 
-function DayBoard({ weekStart, filter, cards }: { weekStart: Date; filter: (l: LessonDTO) => boolean; cards: CardState }) {
+function DayBoard({ weekStart, weekDays, filter, cards }: { weekStart: Date; weekDays: WeekDays; filter: (l: LessonDTO) => boolean; cards: CardState }) {
   const from = isoDate(weekStart);
   const to = isoDate(addDays(weekStart, 6));
   const { data, isLoading } = useLessonRange(from, to);
@@ -308,11 +308,11 @@ function DayBoard({ weekStart, filter, cards }: { weekStart: Date; filter: (l: L
       const d = isoDate(new Date(l.slot.startTime));
       byDay.set(d, [...(byDay.get(d) ?? []), l]);
     }
-    // Weekdays always; weekend days only when something is scheduled.
+    // A 5-day week still shows a weekend day that has something scheduled, so nothing is hidden.
     return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
       .map((d) => ({ date: d, iso: isoDate(d), lessons: byDay.get(isoDate(d)) ?? [] }))
-      .filter((d, i) => i < 5 || d.lessons.length > 0);
-  }, [data, filter, weekStart]);
+      .filter((d, i) => i < weekDays || d.lessons.length > 0);
+  }, [data, filter, weekStart, weekDays]);
 
   return (
     <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-5 pt-1 pb-4">
@@ -320,6 +320,7 @@ function DayBoard({ weekStart, filter, cards }: { weekStart: Date; filter: (l: L
         <DayColumn
           key={d.iso}
           weekday={d.date.toLocaleDateString("en-GB", { weekday: "long" })}
+          weekdayShort={d.date.toLocaleDateString("en-GB", { weekday: "short" })}
           date={d.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           isToday={d.iso === today}
           count={d.lessons.length}

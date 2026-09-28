@@ -63,16 +63,19 @@ export class LocalDiskStorage implements StorageService {
   async reveal(locator: string): Promise<void> {
     await this.assertLocatorInside(locator);
     await fs.mkdir(locator, { recursive: true });
-    const [cmd, args] =
-      process.platform === "win32"
-        ? ["explorer.exe", [locator]]
-        : process.platform === "darwin"
-          ? ["open", [locator]]
-          : ["xdg-open", [locator]];
-    // No shell: the path is passed as a single argv entry, never interpolated.
-    const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
-    child.on("error", () => {});
-    child.unref();
+    launch(locator);
+  }
+
+  async openFile(locator: string, fileName: string): Promise<void> {
+    await this.assertLocatorInside(locator);
+    const full = path.resolve(locator, fileName);
+    if (path.dirname(full) !== path.resolve(locator)) {
+      throw Object.assign(new Error("Invalid file name"), { status: 400 });
+    }
+    await fs.stat(full).catch(() => {
+      throw Object.assign(new Error("File not found"), { status: 404 });
+    });
+    launch(full);
   }
 
   async writeFile(locator: string, fileName: string, data: Buffer): Promise<string> {
@@ -103,4 +106,18 @@ export class LocalDiskStorage implements StorageService {
       throw Object.assign(new Error("Path is outside the teaching folder"), { status: 400 });
     }
   }
+}
+
+/** Opens a folder in the file manager, or a file in its default app. */
+function launch(target: string) {
+  const [cmd, args] =
+    process.platform === "win32"
+      ? ["explorer.exe", [target]]
+      : process.platform === "darwin"
+        ? ["open", [target]]
+        : ["xdg-open", [target]];
+  // No shell: the path is passed as a single argv entry, never interpolated.
+  const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+  child.on("error", () => {});
+  child.unref();
 }

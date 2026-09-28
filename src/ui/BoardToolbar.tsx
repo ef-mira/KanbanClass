@@ -10,7 +10,7 @@ export interface BoardToolbarProps {
   onToggleFilter: (f: StatusFilter) => void;
   next14: boolean;
   onToggleNext14: () => void;
-  /** By day only */
+  /** By week only */
   weekNumber?: number;
   onPrevWeek?: () => void;
   onNextWeek?: () => void;
@@ -52,7 +52,7 @@ export function BoardToolbar(p: BoardToolbarProps) {
     <div role="toolbar" className="flex items-center gap-2 whitespace-nowrap px-5 py-2.5">
       <div className="flex rounded-lg bg-surface p-0.5 shadow-[inset_0_0_0_1px_var(--border)]">
         <Seg active={p.view === "subject"} onClick={() => p.onViewChange("subject")}><Columns3 size={13} />By subject</Seg>
-        <Seg active={p.view === "day"} onClick={() => p.onViewChange("day")}><CalendarDays size={13} />By day</Seg>
+        <Seg active={p.view === "day"} onClick={() => p.onViewChange("day")}><CalendarDays size={13} />By week</Seg>
       </div>
 
       {p.view === "day" && (

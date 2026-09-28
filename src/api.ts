@@ -12,6 +12,7 @@ import type {
   SubjectDTO,
   SyncResult,
   TaskDTO,
+  WeekDays,
 } from "../shared/types";
 
 export class ApiError extends Error {}
@@ -117,7 +118,7 @@ export function useUploadFiles(lessonId: string) {
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (patch: { icalUrl?: string | null; teachingRoot?: string | null; schoolYearStart?: string | null; schoolYearEnd?: string | null; hiddenEventTypes?: EventType[] }) =>
+    mutationFn: (patch: { icalUrl?: string | null; teachingRoot?: string | null; schoolYearStart?: string | null; schoolYearEnd?: string | null; hiddenEventTypes?: EventType[]; weekDays?: WeekDays }) =>
       api<SettingsDTO>("/settings", { method: "PUT", body: patch }),
     onSuccess: (data) => qc.setQueryData(keys.settings, data),
   });
@@ -207,7 +208,7 @@ export function useLessonAction(id: string) {
   const qc = useQueryClient();
   const invalidate = useInvalidateAll();
   return useMutation({
-    mutationFn: (a: { kind: "template"; type: LessonType; mode: "insert" | "replace" } | { kind: "folder" } | { kind: "open" } | { kind: "post" } | { kind: "unpost" }) => {
+    mutationFn: (a: { kind: "template"; type: LessonType; mode: "insert" | "replace" } | { kind: "folder" } | { kind: "open" } | { kind: "openFile"; name: string } | { kind: "post" } | { kind: "unpost" }) => {
       switch (a.kind) {
         case "template":
           return api<{ lesson?: LessonDTO }>(`/lessons/${id}/template`, { method: "POST", body: { type: a.type, mode: a.mode } });
@@ -215,6 +216,8 @@ export function useLessonAction(id: string) {
           return api<{ lesson?: LessonDTO }>(`/lessons/${id}/folder`, { method: "POST" });
         case "open":
           return api<{ lesson?: LessonDTO }>(`/lessons/${id}/folder/open`, { method: "POST" });
+        case "openFile":
+          return api<{ lesson?: LessonDTO }>(`/lessons/${id}/files/open`, { method: "POST", body: { name: a.name } });
         case "post":
           return api<{ lesson?: LessonDTO }>(`/lessons/${id}/homework/post`, { method: "POST" });
         case "unpost":

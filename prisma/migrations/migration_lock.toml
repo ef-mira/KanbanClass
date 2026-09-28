@@ -1,0 +1,2 @@
+# Required by `prisma migrate diff --from-migrations` (npm run db:migration).
+provider = "sqlite"

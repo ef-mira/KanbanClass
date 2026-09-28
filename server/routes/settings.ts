@@ -17,13 +17,24 @@ export async function loadSettings(userId: string): Promise<SettingsDTO> {
     schoolYearStart: s?.schoolYearStart?.toISOString() ?? null,
     schoolYearEnd: s?.schoolYearEnd?.toISOString() ?? null,
     hiddenEventTypes: s ? (JSON.parse(s.hiddenEventTypes) as EventType[]) : ["pause"],
+    weekDays: s?.weekDays === 7 ? 7 : 5,
     lastSyncAt: s?.lastSyncAt?.toISOString() ?? null,
     lastSyncSummary: s?.lastSyncSummary ?? null,
     aiEnabled: aiEnabled(),
     aiModel: AI_MODEL,
     pendingSources: await prisma.eventSource.count({ where: { userId, reviewed: false, eventCount: { gt: 0 } } }),
     platform: process.platform,
+    databaseFile: await databaseFile(),
   };
+}
+
+let dbFile: string | null | undefined;
+async function databaseFile() {
+  if (dbFile === undefined) {
+    const rows = await prisma.$queryRawUnsafe<{ name: string; file: string }[]>("PRAGMA database_list");
+    dbFile = rows.find((r) => r.name === "main")?.file || null;
+  }
+  return dbFile;
 }
 
 settingsRouter.get("/", async (req, res) => {
@@ -36,6 +47,7 @@ const SettingsPatch = z.object({
   schoolYearStart: z.iso.date().nullable().optional(),
   schoolYearEnd: z.iso.date().nullable().optional(),
   hiddenEventTypes: z.array(z.enum(EVENT_TYPES)).optional(),
+  weekDays: z.union([z.literal(5), z.literal(7)]).optional(),
 });
 
 settingsRouter.put("/", async (req, res) => {
@@ -46,6 +58,7 @@ settingsRouter.put("/", async (req, res) => {
     ...(p.schoolYearStart !== undefined && { schoolYearStart: p.schoolYearStart ? new Date(`${p.schoolYearStart}T00:00:00`) : null }),
     ...(p.schoolYearEnd !== undefined && { schoolYearEnd: p.schoolYearEnd ? new Date(`${p.schoolYearEnd}T23:59:59`) : null }),
     ...(p.hiddenEventTypes && { hiddenEventTypes: JSON.stringify(p.hiddenEventTypes) }),
+    ...(p.weekDays && { weekDays: p.weekDays }),
   };
   await prisma.userSettings.upsert({ where: { userId: req.ctx.userId }, create: { userId: req.ctx.userId, ...data }, update: data });
   res.json(await loadSettings(req.ctx.userId));

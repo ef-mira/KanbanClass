@@ -204,6 +204,7 @@ function Editor({ lesson, onClose, onNavigate }: { lesson: LessonDTO; onClose: (
         })
       }
       onOpenFolder={() => action.mutate({ kind: "open" }, { onError: (e) => toast({ kind: "error", text: e.message }) })}
+      onOpenFile={(name) => action.mutate({ kind: "openFile", name }, { onError: (e) => toast({ kind: "error", text: e.message }) })}
       onCopyPath={() => navigator.clipboard.writeText(folderPath).then(() => toast({ kind: "success", text: "Path copied" }))}
     />
   );

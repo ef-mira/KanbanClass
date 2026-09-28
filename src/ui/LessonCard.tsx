@@ -53,6 +53,7 @@ export function LessonCard({ lesson, subject, mode = "subject", expanded, onOpen
   const [wasTruncatable, setWasTruncatable] = useState(false);
   useLayoutEffect(() => { if (!expanded) setWasTruncatable(truncated); }, [expanded, truncated]);
   const showToggle = expanded ? wasTruncatable : truncated;
+  const stackPost = expanded || mode === "day";
   const showFooter = lesson.openTaskCount > 0 || showToggle;
 
   const postLabel =
@@ -86,8 +87,9 @@ export function LessonCard({ lesson, subject, mode = "subject", expanded, onOpen
         </span>
       )}
 
-      <header className="flex min-h-5 items-center gap-2">
-        {mode === "day" && subject && <SubjectPill variant="tag" name={subject.name} color={subject.color} />}
+      {/* In the week view columns are narrow: let the status badge drop below a long subject name rather than cut it off. */}
+      <header className={cx("flex min-h-5 items-center gap-2", mode === "day" && "flex-wrap gap-y-1")}>
+        {mode === "day" && subject && <SubjectPill variant="tag" name={subject.name} color={subject.color} className="max-w-full" />}
         {mode === "subject" && slot && (
           <span className="flex min-w-0 items-center gap-[5px] truncate text-[11px] text-text-muted tabular-nums">
             {shortDateTime(slot.startTime)}
@@ -116,12 +118,14 @@ export function LessonCard({ lesson, subject, mode = "subject", expanded, onOpen
       {(hasHw || files.total > 0) && (
         <div className="flex flex-col gap-1.5 border-t border-border pt-2 text-[12px] leading-[1.45]">
           {hasHw && (
-            <div className={cx("flex gap-[7px]", expanded ? "items-start" : "items-center")}>
-              <BookOpen size={13} className="shrink-0 text-text-faint" />
-              <span ref={hwRef} className={cx("min-w-0 flex-1", !expanded && "truncate")}>{lesson.homeworkText}</span>
-              {postLabel && (
-                <span className={cx("shrink-0 text-[11px] tabular-nums", lesson.homeworkPostedAt ? "text-success" : "text-text-faint")}>{postLabel}</span>
-              )}
+            <div className={cx("flex gap-[7px]", stackPost ? "items-start" : "items-center")}>
+              <BookOpen size={13} className={cx("shrink-0 text-text-faint", stackPost && "mt-0.5")} />
+              {/* Narrow week columns and expanded cards put the post date under the text, so the homework itself stays readable. */}
+              <span className={cx("min-w-0 flex-1", stackPost && "flex flex-col gap-0.5")}>
+                <span ref={hwRef} className={cx("min-w-0", expanded ? "[overflow-wrap:anywhere]" : "block truncate")}>{lesson.homeworkText}</span>
+                {postLabel && stackPost && <PostLabel label={postLabel} posted={!!lesson.homeworkPostedAt} />}
+              </span>
+              {postLabel && !stackPost && <PostLabel label={postLabel} posted={!!lesson.homeworkPostedAt} />}
             </div>
           )}
           {files.total > 0 && (
@@ -137,16 +141,16 @@ export function LessonCard({ lesson, subject, mode = "subject", expanded, onOpen
                   {shownFiles.join(", ")}{extraFiles > 0 && " +" + extraFiles}
                 </span>
               )}
-              <span className="shrink-0 text-[11px] text-text-faint tabular-nums">{files.total}</span>
+              {!expanded && <span className="shrink-0 text-[11px] text-text-faint tabular-nums">{files.total}</span>}
             </div>
           )}
         </div>
       )}
 
       {showFooter && (
-        <footer className="flex items-center gap-1.5 text-[11px] text-text-muted tabular-nums">
+        <footer className="flex flex-wrap items-center gap-1.5 text-[11px] text-text-muted tabular-nums">
           {lesson.openTaskCount > 0 && (
-            <span className="inline-flex items-center gap-[5px]">
+            <span className="inline-flex items-center gap-[5px] whitespace-nowrap">
               <ListChecks size={12} />
               {lesson.openTaskCount} open task{lesson.openTaskCount === 1 ? "" : "s"}
             </span>
@@ -157,7 +161,7 @@ export function LessonCard({ lesson, subject, mode = "subject", expanded, onOpen
               type="button"
               onClick={(e) => { e.stopPropagation(); onToggleExpand(lesson.id); }}
               aria-expanded={expanded}
-              className="-mr-1.5 inline-flex items-center gap-[3px] rounded-md px-1.5 py-0.5 hover:bg-surface-hover hover:text-text"
+              className="-mr-1.5 ml-auto inline-flex items-center gap-[3px] rounded-md px-1.5 py-0.5 whitespace-nowrap hover:bg-surface-hover hover:text-text"
             >
               {expanded ? "Show less" : "Show more"}
               <ChevronDown size={12} className={expanded ? "rotate-180" : ""} />
@@ -167,6 +171,10 @@ export function LessonCard({ lesson, subject, mode = "subject", expanded, onOpen
       )}
     </article>
   );
+}
+
+function PostLabel({ label, posted }: { label: string; posted: boolean }) {
+  return <span className={cx("shrink-0 text-[11px] whitespace-nowrap tabular-nums", posted ? "text-success" : "text-text-faint")}>{label}</span>;
 }
 
 /** Drop indicator line between cards while dragging */

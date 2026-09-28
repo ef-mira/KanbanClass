@@ -18,6 +18,8 @@ export interface StorageService {
   list(locator: string): Promise<FileEntry[]>;
   /** Reveal the folder to the user (file manager locally, a browser URL in V2). */
   reveal(locator: string): Promise<void>;
+  /** Open one file from a folder in its default app. */
+  openFile(locator: string, fileName: string): Promise<void>;
   /** Store a file in a folder. Never overwrites: clashes become "name (2).ext". Returns the stored name. */
   writeFile(locator: string, fileName: string, data: Buffer): Promise<string>;
 }

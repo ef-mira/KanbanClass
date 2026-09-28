@@ -1,8 +1,12 @@
 import { LESSON_TEMPLATES } from "./templates";
 
-/** Label for lists outside the card (toasts, dashboard rows). Cards themselves omit missing titles. */
-export function lessonLabel(l: { title: string; sequenceOrder: number }): string {
-  return l.title.trim() || "Untitled lesson";
+/**
+ * Label for lists outside the card (toasts, dashboard rows). Cards themselves omit missing titles.
+ * Most lessons never get a title, so fall back to "Kemi 9B · Lesson 25" (the number matches its folder).
+ */
+export function lessonLabel(l: { title: string; sequenceOrder: number; subject?: { name: string } }): string {
+  const n = `Lesson ${l.sequenceOrder + 1}`;
+  return l.title.trim() || (l.subject ? `${l.subject.name} · ${n}` : n);
 }
 
 const TEMPLATE_LINES = new Set(

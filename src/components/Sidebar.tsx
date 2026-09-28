@@ -6,6 +6,7 @@ import { useIsDark, useThemePref, type ThemePref } from "../lib/theme";
 import { time } from "../ui/format";
 import { cx } from "../ui/format";
 import { useToast } from "./toast";
+import appIcon from "../../build/icon.svg?url";
 
 const NAV: { view: View; label: string; icon: typeof LayoutDashboard }[] = [
   { view: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -60,10 +61,17 @@ export function Sidebar() {
 
   return (
     <aside className={cx("flex shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200", collapsed ? "w-14" : "w-[232px]")}>
-      <div className="flex h-12 items-center gap-2 px-3">
-        <div className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-[10.5px] font-bold text-accent-fg">KC</div>
+      <div className={cx("flex h-12 items-center gap-2 px-3", collapsed && "justify-center px-0")}>
+        {/* Collapsed, the header only has room for one 26px control, so the expand button replaces the logo. */}
+        {!collapsed && <img src={appIcon} alt="" className="size-6 shrink-0" />}
         {!collapsed && <span className="flex-1 truncate text-[13.5px] font-semibold">KanbanClass</span>}
-        <button type="button" onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className={cx(iconBtn, "size-[26px]", collapsed && "hidden")}>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className={cx(iconBtn, "size-[26px]")}
+        >
           <PanelLeft size={15} />
         </button>
       </div>

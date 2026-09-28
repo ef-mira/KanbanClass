@@ -53,6 +53,7 @@ export interface LessonEditorProps {
   folderExists: boolean;
   onUpload: (files: FileList) => void;
   onOpenFolder: () => void;
+  onOpenFile: (name: string) => void;
   onCopyPath: () => void;
 }
 
@@ -211,11 +212,18 @@ export function LessonEditor(p: LessonEditorProps) {
                   const ext = f.name.split(".").pop()!.toUpperCase();
                   const [bg, fg] = EXT[ext] ?? ["var(--surface-hover)", "var(--text-muted)"];
                   return (
-                    <li key={f.name} className="-mx-2 flex h-9 items-center gap-2.5 rounded-md px-2 tabular-nums hover:bg-surface-hover">
-                      <span className="grid size-6 place-items-center rounded-[5px] text-[8.5px] font-bold" style={{ background: bg, color: fg }}>{EXT[ext] ? ext : <File size={13} />}</span>
-                      <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                      <span className="w-14 text-right text-[11px] text-text-muted">{f.size}</span>
-                      <span className="w-[52px] text-right text-[11px] text-text-muted">{f.modified}</span>
+                    <li key={f.name}>
+                      <button
+                        type="button"
+                        onClick={() => p.onOpenFile(f.name)}
+                        title={`Open ${f.name}`}
+                        className="-mx-2 flex h-9 w-[calc(100%+1rem)] items-center gap-2.5 rounded-md px-2 text-left tabular-nums hover:bg-surface-hover"
+                      >
+                        <span className="grid size-6 place-items-center rounded-[5px] text-[8.5px] font-bold" style={{ background: bg, color: fg }}>{EXT[ext] ? ext : <File size={13} />}</span>
+                        <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                        <span className="w-14 text-right text-[11px] text-text-muted">{f.size}</span>
+                        <span className="w-[52px] text-right text-[11px] text-text-muted">{f.modified}</span>
+                      </button>
                     </li>
                   );
                 })}

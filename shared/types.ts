@@ -103,12 +103,16 @@ export interface DashboardDTO {
   tasks: TaskDTO[];
 }
 
+export type WeekDays = 5 | 7;
+
 export interface SettingsDTO {
   icalUrl: string | null;
   teachingRoot: string;
   schoolYearStart: string | null;
   schoolYearEnd: string | null;
   hiddenEventTypes: EventType[];
+  /** Days shown per week: 5 (Mon–Fri) or 7 (Mon–Sun, e.g. efterskoler). */
+  weekDays: WeekDays;
   lastSyncAt: string | null;
   lastSyncSummary: string | null;
   aiEnabled: boolean;
@@ -116,6 +120,8 @@ export interface SettingsDTO {
   /** Calendar sources seen in a sync but not yet sorted in the category modal. */
   pendingSources: number;
   platform: NodeJS.Platform | string;
+  /** The SQLite file actually in use, as SQLite reports it. */
+  databaseFile: string | null;
 }
 
 export interface SyncResult {

@@ -4,7 +4,7 @@ import { prisma } from "../db";
 import { body, HttpError, ownedLesson } from "../http";
 import { LESSON_TYPES, type LessonFilesDTO } from "../../shared/types";
 import { LESSON_TEMPLATES } from "../../shared/templates";
-import { hasMeaningfulContent } from "../../shared/planning";
+import { hasMeaningfulContent, lessonLabel } from "../../shared/planning";
 import { extractActionItems } from "../services/ai/extractActions";
 import { ensureLessonFolder, lessonInclude, toLessonDTO, withFiles } from "../services/lessons";
 import type { StorageService } from "../services/storage/StorageService";
@@ -97,7 +97,7 @@ async function syncActionItems(userId: string, lessonId: string, bodyText: strin
   const now = new Date();
   const lessonDate = lesson.calendarEvents[0]?.startTime ?? null;
   const { items, warning } = await extractActionItems(bodyText, {
-    lessonTitle: lesson.title || "Untitled lesson",
+    lessonTitle: lessonLabel(lesson),
     subjectName: lesson.subject.name,
     lessonDate,
     today: now,
@@ -160,6 +160,14 @@ lessonsRouter.post("/:id/files", express.raw({ type: () => true, limit: "200mb" 
   res.status(201).json({ folderPath, name: saved });
 });
 
+lessonsRouter.post("/:id/files/open", async (req, res) => {
+  const lesson = await ownedLesson(req, req.params.id);
+  const { name } = body(z.object({ name: z.string().min(1) }), req);
+  if (!lesson.folderPath) throw new HttpError(404, "This lesson has no folder yet");
+  await req.ctx.storage.openFile(lesson.folderPath, name);
+  res.json({ ok: true });
+});
+
 lessonsRouter.get("/:id/files", async (req, res) => {
   const lesson = await ownedLesson(req, req.params.id);
   const out: LessonFilesDTO = { folderPath: lesson.folderPath, exists: false, files: [] };
@@ -179,7 +187,7 @@ lessonsRouter.post("/:id/homework/post", async (req, res) => {
     subjectName: lesson.subject.name,
     group: slot?.group ?? null,
     lessonDate: slot?.startTime ?? new Date(),
-    title: lesson.title || "Untitled lesson",
+    title: lessonLabel(lesson),
     body: lesson.homeworkText,
   });
   await prisma.lesson.update({ where: { id: lesson.id }, data: { homeworkPostedAt: result.postedAt } });

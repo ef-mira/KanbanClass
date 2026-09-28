@@ -11,15 +11,18 @@ export interface WeekGridProps {
   endHour?: number;
   hourHeight?: number;
   onEventClick?: (id: string) => void;
+  /** 5 = Mon–Fri, 7 = Mon–Sun */
+  days?: 5 | 7;
 }
 
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const mins = (iso: string) => { const t = iso.split("T")[1]; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const hatch = "repeating-linear-gradient(135deg, var(--surface-hover) 0 4px, transparent 4px 8px)";
 
-export function WeekGrid({ weekStart, events, now, startHour = 8, endHour = 16, hourHeight = 62, onEventClick }: WeekGridProps) {
+export function WeekGrid({ weekStart, events, now, startHour = 8, endHour = 16, hourHeight = 62, onEventClick, days: dayCount = 5 }: WeekGridProps) {
   const start = new Date(weekStart + "T00:00");
-  const days = DOW.map((d, i) => {
+  const cols = { gridTemplateColumns: `44px repeat(${dayCount}, minmax(0, 1fr))` };
+  const days = DOW.slice(0, dayCount).map((d, i) => {
     const dt = new Date(start); dt.setDate(start.getDate() + i);
     const iso = dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0");
     return { label: d + " " + dt.getDate(), iso };
@@ -30,13 +33,13 @@ export function WeekGrid({ weekStart, events, now, startHour = 8, endHour = 16, 
 
   return (
     <div className="flex min-h-0 flex-col text-[12px]">
-      <div className="grid grid-cols-[44px_repeat(5,minmax(0,1fr))] border-t border-border">
+      <div className="grid border-t border-border" style={cols}>
         <span />
         {days.map((d) => (
           <div key={d.iso} className={cx("border-l border-border px-2.5 py-2 tabular-nums", d.iso === nowDay ? "font-semibold text-accent" : "font-medium text-text-muted")}>{d.label}</div>
         ))}
       </div>
-      <div className="relative grid grid-cols-[44px_repeat(5,minmax(0,1fr))] border-t border-border" style={{ height: (endHour - startHour) * hourHeight }}>
+      <div className="relative grid border-t border-border" style={{ ...cols, height: (endHour - startHour) * hourHeight }}>
         <div className="relative">
           {hours.map((h) => (
             <span key={h} className="absolute right-2 -translate-y-1/2 text-[10.5px] text-text-faint tabular-nums" style={{ top: (h - startHour) * hourHeight }}>

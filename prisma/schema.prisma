@@ -5,7 +5,7 @@
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -21,6 +21,7 @@ model UserSettings {
   hiddenEventTypes String   @default("[\"pause\"]") // JSON array of CalendarEvent.eventType
   lastSyncAt       DateTime?
   lastSyncSummary  String?
+  weekDays         Int      @default(5) // 5 = Mon–Fri, 7 = Mon–Sun (e.g. efterskoler)
 }
 
 model Subject {
